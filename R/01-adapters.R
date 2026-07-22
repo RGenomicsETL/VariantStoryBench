@@ -66,7 +66,7 @@ S7::method(bench_execute, BenchCommandAdapter) <- function(adapter, input, outpu
   arguments <- bench_expand_arguments(adapter@arguments, input, output)
   command <- do.call(
     exec,
-    unname(c(list(adapter@executable), as.list(vapply(arguments, shQuote, character(1)))))
+    unname(c(list(shQuote(adapter@executable)), as.list(vapply(arguments, shQuote, character(1)))))
   )
   if (!is.null(adapter@working_directory)) {
     command <- cmd_wd(command, adapter@working_directory)
