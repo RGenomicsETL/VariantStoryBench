@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "Please cite VariantStoryBench and the benchmark methods used."
+title: "VariantStoryBench"
+type: software
+repository-code: "https://github.com/RGenomicsETL/VariantStoryBench"
+authors:
+  - family-names: "Toure"
+    given-names: "Sounkou Mahamane"
+  - family-names: "Rushdiha"
+    given-names: "Halireena"
+  - family-names: "Latheef"
+    given-names: "Nubla"
+  - family-names: "Baroudi"
+    given-names: "Rayane"
+  - name: "Waasia"
+abstract: >-
+  Reproducible fixtures, synthetic rare-disease cases, spike-ins, metrics and
+  adapters for variant reanalysis benchmarking.
