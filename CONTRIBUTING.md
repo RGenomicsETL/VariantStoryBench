@@ -1,9 +1,8 @@
 # Contributing
 
-Do not commit patient data, private VCFs, clinical reports, credentials,
-company-confidential material, licensed database extracts or model weights.
+Contributions should be small, reproducible and covered by an open-source
+licence compatible with GPL-3. Add focused tests for changed behaviour and
+record the source, version and licence of every fixture.
 
-Contributions must identify their source, licence, author and permitted use.
-Substantial contributions require the applicable contributor agreement before
-acceptance. Use deterministic seeds and include expected outputs for new
-fixtures or generators.
+Do not commit patient-identifying data, credentials or data that cannot be
+redistributed.

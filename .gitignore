@@ -1,14 +1,18 @@
-__pycache__/
-*.py[cod]
-.venv/
-.conda/
-.pytest_cache/
-.coverage
-htmlcov/
-dist/
-build/
-*.egg-info/
-.DS_Store
+# R
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rproj
+*.Rcheck/
+*.tar.gz
+README.html
+
+# targets
+_targets/
+
+# Benchmark outputs and potentially sensitive inputs
+benchmark-output/
 *.vcf
 *.vcf.gz
 *.bcf
@@ -18,3 +22,4 @@ build/
 *.duckdb
 *.sqlite
 .env
+.DS_Store

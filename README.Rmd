@@ -1,3 +1,10 @@
+---
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
 
 # VariantStoryBench
 
@@ -5,18 +12,18 @@
 
 VariantStoryBench is an R package for reproducible rare-disease variant
 reanalysis benchmarks. It validates compact result manifests, calculates
-ranking and candidate-burden metrics, and provides an S7 adapter
-contract for running declared external engines.
+ranking and candidate-burden metrics, and provides an S7 adapter contract for
+running declared external engines.
 
 ## Install
 
-``` r
+```r
 remotes::install_github("RGenomicsETL/VariantStoryBench")
 ```
 
 ## Metrics
 
-``` r
+```{r, eval=FALSE}
 library(VariantStoryBench)
 
 results <- bench_read_results(
@@ -25,18 +32,17 @@ results <- bench_read_results(
 bench_metrics(results)
 ```
 
-`causal_rank = NA` represents a no-causal case. Causal recall is
-calculated only over cases with a declared causal rank; no-causal cases
-remain in candidate burden metrics.
+`causal_rank = NA` represents a no-causal case. Causal recall is calculated
+only over cases with a declared causal rank; no-causal cases remain in candidate
+burden metrics.
 
 ## External engines
 
-`BenchCommandAdapter` uses `blit` to run an executable with declared,
-quoted arguments. `{input}` and `{output}` are substituted before
-execution. `BenchRunner` is the S7 contract accepted by consumers of
-adapters.
+`BenchCommandAdapter` uses `blit` to run an executable with declared, quoted
+arguments. `{input}` and `{output}` are substituted before execution.
+`BenchRunner` is the S7 contract accepted by consumers of adapters.
 
-``` r
+```{r, eval=FALSE}
 adapter <- BenchCommandAdapter(
   executable = "my-prioritizer",
   arguments = c("--input", "{input}", "--output", "{output}")
@@ -48,17 +54,16 @@ stopifnot(run@status == 0L)
 
 ## Pipeline
 
-The repository contains a
-[`targets`](https://docs.ropensci.org/targets/) pipeline over the
-packaged synthetic manifest.
+The repository contains a [`targets`](https://docs.ropensci.org/targets/)
+pipeline over the packaged synthetic manifest.
 
-``` r
+```r
 # From the package source directory:
 targets::tar_make(callr_function = NULL)
 ```
 
-The initial fixture is synthetic. Add public or redistributable fixtures
-with their source, version and licence recorded alongside the data.
+The initial fixture is synthetic. Add public or redistributable fixtures with
+their source, version and licence recorded alongside the data.
 
 ## Licence
 
