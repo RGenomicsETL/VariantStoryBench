@@ -1,0 +1,7 @@
+case_id,cohort,target_type,truth_status,stratum,pedigree_mode,variant_class
+fixture-denovo,synthetic-pedigree,variant,known_causal,established_disease,trio,SNV
+fixture-recessive,synthetic-pedigree,variant_set,known_causal,established_disease,trio,compound_heterozygous
+fixture-splice,synthetic-pedigree,variant,known_causal,established_disease,singleton,indel
+fixture-discovery,synthetic-discovery,gene,known_causal,gene_discovery,trio,SNV
+fixture-unsolved,synthetic-unsolved,variant,unresolved,open_hypothesis,duo,SNV
+fixture-negative,synthetic-negative,variant,confirmed_negative,negative_control,trio,SNV

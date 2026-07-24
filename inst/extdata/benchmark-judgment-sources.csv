@@ -1,0 +1,4 @@
+run_id,case_id,target_type,candidate_id,claim_id,source_relation,source_release,source_record_id,source_field,span_start,span_end,stance
+fixture-a-2026,fixture-discovery,gene,GENE_NEW,phenotype-fit,public_solved_cases,fixture-2026-07,case-report-17,phenotype_text,18,74,supports
+fixture-a-2026,fixture-discovery,gene,GENE_NEW,phenotype-fit,clinvar_disease_assertions,fixture-2026-07,VCV000000017:MONDO0000017,linked_publication,,,context
+fixture-a-2026,fixture-discovery,gene,GENE_NEW,mechanism-fit,gene_disease_evidence,fixture-2026-07,GENE_NEW:MONDO0000017,mechanism,,,context

@@ -1,0 +1,5 @@
+case_id,target_type,causal_id
+fixture-denovo,variant,1:100:A:T
+fixture-recessive,variant_set,GENE2:1:200:G:C+1:300:T:TA
+fixture-splice,variant,2:400:AT:A
+fixture-discovery,gene,GENE_NEW

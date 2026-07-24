@@ -1,0 +1,16 @@
+run_id,case_id,target_type,candidate_id,rank
+fixture-a-2026,fixture-denovo,variant,1:100:A:T,1
+fixture-a-2026,fixture-denovo,variant,1:101:C:G,2
+fixture-a-2026,fixture-recessive,variant_set,GENE2:1:200:G:C+1:300:T:TA,2
+fixture-a-2026,fixture-recessive,variant_set,GENE3:2:500:A:G+2:600:C:T,1
+fixture-a-2026,fixture-splice,variant,2:400:AT:A,3
+fixture-a-2026,fixture-splice,variant,2:401:T:C,1
+fixture-a-2026,fixture-splice,variant,2:402:G:A,2
+fixture-a-2026,fixture-discovery,gene,GENE_NEW,1
+fixture-a-2026,fixture-unsolved,variant,3:700:C:T,1
+fixture-b-2026,fixture-denovo,variant,1:101:C:G,1
+fixture-b-2026,fixture-denovo,variant,1:100:A:T,2
+fixture-b-2026,fixture-recessive,variant_set,GENE2:1:200:G:C+1:300:T:TA,1
+fixture-b-2026,fixture-unsolved,variant,3:700:C:T,1
+fixture-b-2026,fixture-unsolved,variant,3:701:G:A,2
+fixture-b-2026,fixture-negative,variant,4:800:A:G,1

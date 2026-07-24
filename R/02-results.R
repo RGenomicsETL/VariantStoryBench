@@ -12,8 +12,10 @@ bench_required_columns <- function(x, required) {
 #' Validate benchmark result rows
 #'
 #' @param results A data frame with `case_id`, `cohort`, `causal_rank`, and
-#'   `candidate_count` columns. Missing `causal_rank` represents a no-causal
-#'   case.
+#'   `candidate_count` columns. This legacy compact format cannot distinguish
+#'   an unresolved case, a confirmed negative, a failed evaluation, or a known
+#'   causal answer that was not recovered. Use the relational manifests and
+#'   [bench_rank_metrics()] for comparative work.
 #' @return `results`, invisibly.
 #' @export
 bench_validate_results <- function(results) {

@@ -1,0 +1,3 @@
+run_id,case_id,target_type,candidate_id,claim_id,claim_text,judgment,judge_id,judge_version,confidence
+fixture-a-2026,fixture-discovery,gene,GENE_NEW,phenotype-fit,The candidate gene fits the declared case phenotype,supports,rbebelm-local,fixture-1,0.91
+fixture-a-2026,fixture-discovery,gene,GENE_NEW,mechanism-fit,The disease mechanism explains the candidate event,insufficient_evidence,rbebelm-local,fixture-1,

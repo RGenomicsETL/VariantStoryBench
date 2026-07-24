@@ -1,0 +1,13 @@
+run_id,case_id,target_type,status
+fixture-a-2026,fixture-denovo,variant,completed
+fixture-a-2026,fixture-recessive,variant_set,completed
+fixture-a-2026,fixture-splice,variant,completed
+fixture-a-2026,fixture-discovery,gene,completed
+fixture-a-2026,fixture-unsolved,variant,completed
+fixture-a-2026,fixture-negative,variant,completed
+fixture-b-2026,fixture-denovo,variant,completed
+fixture-b-2026,fixture-recessive,variant_set,completed
+fixture-b-2026,fixture-splice,variant,failed
+fixture-b-2026,fixture-discovery,gene,unsupported
+fixture-b-2026,fixture-unsolved,variant,completed
+fixture-b-2026,fixture-negative,variant,completed

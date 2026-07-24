@@ -1,6 +1,10 @@
 #' Calculate ranking metrics
 #'
-#' @param results Validated benchmark result rows.
+#' This legacy summary excludes missing `causal_rank` values from recall
+#' denominators because the compact input does not declare why the rank is
+#' missing. Use [bench_rank_metrics()] for coverage-aware comparisons.
+#'
+#' @param results Validated legacy benchmark result rows.
 #' @param top_k Positive integer ranking cutoffs.
 #' @return One-row data frame of aggregate metrics.
 #' @export

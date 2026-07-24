@@ -8,8 +8,10 @@ bench_validate_results(results)
 }
 \arguments{
 \item{results}{A data frame with \code{case_id}, \code{cohort}, \code{causal_rank}, and
-\code{candidate_count} columns. Missing \code{causal_rank} represents a no-causal
-case.}
+\code{candidate_count} columns. This legacy compact format cannot distinguish
+an unresolved case, a confirmed negative, a failed evaluation, or a known
+causal answer that was not recovered. Use the relational manifests and
+\code{\link[=bench_rank_metrics]{bench_rank_metrics()}} for comparative work.}
 }
 \value{
 \code{results}, invisibly.

@@ -7,7 +7,7 @@
 bench_metrics(results, top_k = c(1L, 3L, 5L, 10L))
 }
 \arguments{
-\item{results}{Validated benchmark result rows.}
+\item{results}{Validated legacy benchmark result rows.}
 
 \item{top_k}{Positive integer ranking cutoffs.}
 }
@@ -15,5 +15,7 @@ bench_metrics(results, top_k = c(1L, 3L, 5L, 10L))
 One-row data frame of aggregate metrics.
 }
 \description{
-Calculate ranking metrics
+This legacy summary excludes missing \code{causal_rank} values from recall
+denominators because the compact input does not declare why the rank is
+missing. Use \code{\link[=bench_rank_metrics]{bench_rank_metrics()}} for coverage-aware comparisons.
 }

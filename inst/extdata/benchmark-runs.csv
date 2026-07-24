@@ -1,0 +1,3 @@
+run_id,engine_id,engine_version,source_revision,profile_id,knowledge_cutoff,thread_count,wall_seconds,peak_rss_bytes,run_status
+fixture-a-2026,fixture-a,0.1.0,fixture-revision-a,default,2026-07-01,1,1.25,104857600,completed
+fixture-b-2026,fixture-b,0.1.0,fixture-revision-b,established-only,2026-07-01,1,0.95,83886080,completed
