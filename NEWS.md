@@ -6,9 +6,10 @@
   evaluation, but no current public metric interprets them. Raw GQ/DP remain
   only in generated VCF input.
 
-- Declared the GitHub remote for the non-CRAN `ducksemantics` import so clean
-  dependency resolution can install the package, and removed unrelated
-  development packages from the R-CMD-check workflow.
+- Pinned the tested GitHub revisions of the non-CRAN `ducksemantics` import and
+  the `Rduckhts` monorepo subpackage so clean dependency resolution installs the
+  required exported connection API, and removed unrelated development packages
+  from the R-CMD-check workflow.
 
 - Corrected symbolic-CNV BED semantics in the micro-cohort: VCF `POS=549997`
   is the one-based padding/base-before-event coordinate and `END=559997` is

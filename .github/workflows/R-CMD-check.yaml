@@ -25,6 +25,7 @@ jobs:
             any::targets,
             any::knitr,
             any::rmarkdown,
+            github::RGenomicsETL/duckhts/r/Rduckhts@da231c9ce3750570ddc1d02ada3bb6d8f2b3b52e,
             local::.
           needs: check
       - name: Check package

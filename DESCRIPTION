@@ -22,7 +22,8 @@ Imports:
     ducksemantics,
     vcfppR
 Remotes:
-    RGenomicsETL/ducksemantics
+    RGenomicsETL/ducksemantics@fabda65ef8c82eabc7658b4e99489dfee141150f,
+    Rduckhts=RGenomicsETL/duckhts/r/Rduckhts@da231c9ce3750570ddc1d02ada3bb6d8f2b3b52e
 Suggests:
     DBI,
     knitr,
