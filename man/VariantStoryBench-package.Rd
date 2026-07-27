@@ -4,10 +4,10 @@
 \name{VariantStoryBench-package}
 \alias{VariantStoryBench}
 \alias{VariantStoryBench-package}
-\title{VariantStoryBench: reproducible variant reanalysis benchmarks}
+\title{VariantStoryBench: sealed variant-prioritisation benchmarks}
 \description{
-Tools for defining benchmark results, executing declared command adapters,
-and calculating ranking metrics.
+Tools for generating synthetic benchmark inputs and evaluating declared
+engine result relations against evaluator-only truth.
 }
 \seealso{
 Useful links:

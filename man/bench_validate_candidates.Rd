@@ -8,7 +8,9 @@ bench_validate_candidates(candidates)
 }
 \arguments{
 \item{candidates}{Data frame with \code{run_id}, \code{case_id}, \code{target_type},
-\code{candidate_id}, and positive integer \code{rank}.}
+\code{candidate_id}, and positive integer \code{rank}. Ranks must be unique and
+contiguous from one within each emitted case unit. Emitters break score
+ties by \code{candidate_id} before assigning ranks.}
 }
 \value{
 \code{candidates}, invisibly.

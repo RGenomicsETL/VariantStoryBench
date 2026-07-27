@@ -35,10 +35,10 @@ expect_error(
 )
 
 bad_span <- sources
-bad_span$span_end[[1L]] <- bad_span$span_start[[1L]] - 1L
+bad_span$span_end[[1L]] <- bad_span$span_start[[1L]]
 expect_error(
   bench_validate_judgment_sources(bad_span),
-  "zero-based integer intervals"
+  "half-open, strictly nonempty"
 )
 
 unknown_candidate <- judgments

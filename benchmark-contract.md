@@ -1,163 +1,134 @@
-# VariantStoryBench benchmark contract
+# VariantStoryBench relation and metric contract
 
-Status: current implementation guidance for the public benchmark package.
+**Current executable authority:** validators and metrics in `R/`, with
+regressions in `inst/tinytest/`. [ARCHITECTURE.md](ARCHITECTURE.md) defines the
+package boundary.
 
-## What the benchmark measures
+## Sealed generation bundles
 
-VariantStoryBench compares complete rare-disease prioritisation runs, not one
-annotation field or one pathogenicity score. The public contract has five core
-ranking relations and two source-grounding relations:
+`bench_generate_micro_cohort()` returns two bundles. They are separate
+admission boundaries, not two views of one engine payload.
 
-| Relation | Unit |
-|:--|:--|
-| cases | one case and evaluation target: variant, variant set, or gene |
-| truth | one accepted causal answer; a case may have more than one |
-| runs | one engine, profile, source revision, knowledge cutoff, and resource receipt |
-| evaluations | one explicit completion, failure, unsupported, or skipped status for every run and case unit |
-| candidates | one ranked candidate emitted by a completed evaluation |
-| judgments | one declared phenotype, inheritance, mechanism, disease, or literature claim about a candidate |
-| judgment_sources | one exact source record, field, optional text span, and stance cited for a judgment |
+| Bundle | Relations | Contract |
+|---|---|---|
+| `engine_input` | `case_manifest`, `generations`, `vcf_paths`, `persons`, `relationships`, `documents` | Contains only GRCh38 VCFs and family/clinical presentation. It must not contain causal IDs, evaluator truth, a reference result, or an oracle. |
+| `evaluator_truth` | `cases`, `truth`, `documents`, `hpo_observations`, `inheritance_truth`, `sequence_truth`, `cnv_truth`, `capabilities` | Kept outside provider and engine input. It is supplied only to evaluation. |
 
-Known-causal, unresolved, and confirmed-negative cases are different states.
-An unresolved case is not a negative control. A failed or unsupported
-known-causal case remains in recall denominators instead of disappearing.
+The text provider receives only `case_id`, `phenotype_plan` (`hpo_id` and
+`context_status`), and relationships. It never receives causal variant or gene
+truth. It returns valid `source_text` plus exact HPO spans; an empty phenotype
+plan is valid and produces a document with zero observations. The source
+document and canonical HPO observations are then independently validated.
 
-`bench_rank_metrics()` reports top-k recall and mean reciprocal rank over
-known-causal units, candidate burden over completed units, explicit execution
-coverage, and separate unresolved and confirmed-negative burdens. Variant,
-variant-set, and gene targets remain separate by default.
+There is no bundled engine adapter or reference result. A concrete adapter is
+admissible only when it consumes the complete `engine_input` bundle and emits
+validated core result relations.
 
-`bench_validate_grounding()` requires every judgment to cite at least one exact
-source record. Directional judgments require a source with the same
-`supports` or `contradicts` stance. An `insufficient_evidence` judgment may
-cite contextual or conflicting records. If retrieval finds no source, the
-engine abstains instead of emitting an unsupported judgment.
+## Core result relations
 
-`bench_grounding_metrics()` reports judgment and source counts as audit
-coverage. It does not claim that a citation is relevant or a judgment is
-correct. Source-attribution precision, support/contradiction accuracy, and
-calibrated abstention require separately adjudicated truth.
+| Relation | Required identity | Contract |
+|---|---|---|
+| `cases` | `case_id`, `target_type` | `truth_status` is `known_causal`, `unresolved`, or `confirmed_negative`; `target_type` includes `cnv`. |
+| `truth` | `case_id`, `target_type`, `causal_id` | Only known-causal units have truth; every known-causal unit has at least one row. |
+| `runs` | `run_id` | Declares engine/version/source/profile/cutoff/resources and run status. |
+| `evaluations` | `run_id`, `case_id`, `target_type` | Contains exactly one row for every run × case unit; status is completed, failed, unsupported, or skipped. |
+| `candidates` | run/case/target/candidate | Candidates belong only to completed evaluations. Ranks are unique and contiguous from 1 per emitted case unit; emitters break score ties by `candidate_id`. |
+| `judgments` / `judgment_sources` | claim key / source key | Directional judgments cite matching source stance. Present spans are zero-based, half-open, and strictly nonempty. |
 
-## RGenomicsETL stack under test
+`bench_rank_metrics()` includes failed, skipped, and unsupported known-causal
+units as misses. It reports unresolved and confirmed-negative burden
+separately. `bench_grounding_metrics()` is source-audit coverage, not evidence
+correctness.
 
-| Component | Benchmark role |
-|:--|:--|
-| DuckHTS/Rduckhts | VCF/BCF/gVCF and SV transport, DuckVEP consequence/HGVS facts, dense and interval annotation readers |
-| RClinVarbitration | release-pinned ClinVar source relations, disease-level decisions, and named submitter-exclusion policies |
-| ducksemantics | deterministic ontology graph operations plus declared phenotype and literature retrieval candidates |
-| Rbebelm | optional local HPO/text proposal and reranking provider, measured separately from deterministic grounding |
-| VariantStory | private case, evidence, policy, prioritisation, review, and report implementation |
-| VariantStoryBench | public fixtures, comparator adapters, run receipts, metrics, and publication protocol |
+## Persons, relationships, documents, and HPO observations
 
-An Rbebelm or ducksemantics result may propose a candidate. It is not admitted
-clinical evidence and does not become a correct gene merely because it ranks
-high. ClinVar assertions are not treated as complete phenotype-rich cases:
-disease decisions, linked literature, curated solved cases, gene-disease
-evidence, and governed historical cases remain separately identified sources.
-Gene discovery needs the historical holdout described below.
+`persons` has exactly `case_id`, `person_id`, `vcf_sample_id`, `is_proband`,
+`sex`, and `affected`; `affected` uses `affected`, `unaffected`, or `unknown`.
+Every generation's VCF sample header must equal the
+case's `persons$vcf_sample_id` values; every case has exactly one proband.
+`relationships` has exactly `case_id`, `person_id`, `relative_id`, and
+`relationship`. The trio uses two `biological_parent` edges; sex distinguishes
+those parents in `persons`.
 
-Bulk source preparation belongs in `targets`. Validated source and result
-relations can be published as DuckLake snapshots and queried in DuckDB.
-Snapshot identity, source-effective date, and engine knowledge cutoff are all
-recorded: a recent snapshot containing an old source release is not equivalent
-to a historical as-of run. Public resources and protected clinical relations
-use separate catalogs and storage.
+`documents` has `case_id`, unique `document_id`, and exact nonempty
+`source_text`, with one document for every case, including CNV. `hpo_observations`
+uses exactly
+`ducksemantics_hpo_observation_contract()`:
 
-## Evidence programme
+```
+document_id, hpo_id, start_offset, end_offset, source_text,
+context_status, method, provider_id, provider_version, confidence, status
+```
 
-The benchmark grows through distinct evidence products. Results from one
-product must not be relabelled as another.
+`ducksemantics_hpo_observations()` validates document identity, exact quoted
+`source_text`, zero-based half-open bounds, accepted status, and canonical
+context vocabulary. Negated findings use `absent/negated`, not `negated`.
 
-1. **Executable fixtures.** Small examples cover evidence codes, inheritance,
-   phase, missingness, conflicts, CNV/SV, and update semantics.
-2. **Public background spike-ins.** Causal events are introduced into declared
-   GIAB or 1000 Genomes backgrounds. Trio, duo, and singleton presentations
-   isolate the value of pedigree information. These measure analytical
-   recovery, not clinical yield.
-3. **Temporal holdouts.** An engine sees only sources available at the declared
-   knowledge cutoff and is scored against later changes. ReVUS and Genome
-   Alert! are useful independent designs for this question.
-4. **Public solved cases.** Held-out diagnoses measure causal recovery and
-   reviewer burden on real cases. Knowledge dates and any prior use in model
-   calibration must be recorded.
-5. **Controlled clinical evaluation.** Previously unsolved cases remain inside
-   the approved clinical environment. Qualified reviewers adjudicate returned
-   candidates. Only this stage can estimate incremental diagnostic yield.
+`bench_hpo_metrics(documents, truth, extracted, extracted_documents)` validates
+both observation relations against their source documents and scores term,
+context, and exact span separately. A zero denominator is reported with count
+zero and `NA` rates; it is unavailable, not a perfect score. When precision
+and recall both have present denominators and equal zero performance, F1 is
+zero rather than `NA`.
 
-For every stage, report input cases, known-causal cases, completed cases,
-candidate rows, target type, thread count, wall time, peak RSS, engine version,
-source revision, profile, and knowledge cutoff.
+## Generated GRCh38 cohort
 
-### ClinVar change has two independent axes
+| Relation | Current contract |
+|---|---|
+| `generations` | One singleton, trio, and symbolic-CNV GRCh38 VCF written through `vcfppR`. |
+| `persons` | Singleton, all trio members, and the CNV proband, with exact VCF sample mappings. |
+| `relationships` | Latent trio presentation with two `biological_parent` edges. |
+| `sequence_truth` | Person-grain SNV/indel/CNV rows for every sample/record; genotype call and quality are separate. |
+| `cnv_truth` | `case_id`, assembly, contig, CNV type, BED start/end, and authority. |
+| `capabilities` | Explicit `supported` or `unsupported` status and detail. |
 
-RClinVarbitration retains disease-level SCV evidence and computes named policy
-profiles with explicit submitter exclusions. This supports two different
-comparisons:
+The generated VCFs use Ensembl GRCh38 primary-assembly contig names and these
+verified reference alleles:
 
-1. hold the policy receipt fixed and compare two ClinVar releases;
-2. hold the release fixed and compare two submitter-exclusion policies.
-
-Do not change release and policy together. That would make it impossible to
-tell whether a decision changed because ClinVar evolved or because evidence
-from a submitter was admitted or excluded. `bench_classification_diff()`
-enforces this rule and keeps the disease key, allele, original classifications,
-stars, policy receipts, and transition type.
-
-RClinVarbitration owns the ClinVar entity keys and exports a source-rich
-disease-decision Parquet with stable record keys, complete-row content
-receipts, and nested SCV and RCV receipts. DuckLake owns publication snapshots
-and the data-change feed. Register the Parquet, merge only changed record keys
-into the persistent table, and obtain exact insert, delete, and update images
-with `get_table_changes()`. VariantStoryBench summarizes those declared
-changes; it does not maintain a second ClinVar parser, snapshot engine, or
-identity scheme.
-
-An allele-level summary may be derived later, but it must not replace the
-disease-level transition relation: one allele can have different evidence and
-decisions for different conditions.
-
-## Comparator profiles
-
-Talos is an established-disease-gene reanalysis comparator. Its supported
-variant modules, pedigree behavior, PanelApp/phenotype filtering, and
-candidate-output contract should be reproduced at a pinned commit. A separate
-VariantStory profile may test candidate genes outside established panels. That
-is an extension benchmark, not a Talos disagreement.
-
-Gene-discovery evaluation requires a historical knowledge cutoff. A causal
-gene counted as a discovery target must not have been available to the engine
-through its gene-disease, panel, literature, or training resources at that
-cutoff. Report established-gene and discovery strata separately.
-
-The annotation-throughput benchmark is also separate from case ranking.
-DuckHTS/DuckVEP, `variant_myth`, Ensembl VEP, and other annotators may be
-compared on the same variants and requested fields, but annotation speed does
-not establish diagnostic performance.
-
-## Public and private assets
-
-The public repository contains benchmark code and redistributable fixtures.
-External engines are executed through adapters and retain their own licences.
-Private VariantStory code, clinical records, exact private answer keys,
-restricted predictor tables, and licensed OMIM data are not copied here.
-
-The following projects are reference seeds, not vendored dependencies:
-
-| Project | Inspected revision | Treatment |
+| VCF locus | REF | ALT |
 |:--|:--|:--|
-| Talos | `dc0278df0c0af80614963444f3766e22e8124c27` | MIT comparator; pin executable and resource releases |
-| variant_myth | `8261529d6a1e452d6bb3b33bfd0326e98f63d147` | MIT annotation comparator |
-| ReVUS | `7a082199d108d5eb3fe56f57ec846fb7a9c50ae9` | MIT code and ClinVar-derived temporal labels under the repository's stated data terms |
-| sugi-variant | `9d6ffb8ff588ab9f46313f29d70255188deed40f` | design reference only; no repository licence was present at inspection |
+| `1:100000` | `C` | `T` |
+| `1:100100` | `T` | `G` |
+| `2:199999-200000` | `TG` | `T` |
+| `2:200100` | `T` | `A` |
+| `2:200200` | `A` | `C` |
+| `2:200300` | `T` | `C` |
+| `7:549997` | `T` | `<DEL>` (`END=559997`) |
 
-Do not copy code or data from a seed whose licence or redistribution terms are
-absent or incompatible. Predictor outputs such as REVEL, AlphaMissense, CADD,
-SpliceAI, and licensed OMIM data remain local resources under their own terms.
+These micro-coordinates were checked against Ensembl release 116 GRCh38
+primary assembly. The package does not bundle the reference FASTA or provide a
+general reference validator.
 
-## The July 30 milestone
+The symbolic deletion is an actual `cnv` case in `cases`, `truth`, and emitted
+`evaluations`. Its VCF `POS=549997` and `END=559997` map to the BED half-open
+interval `[549996, 559997)`: subtract one from VCF POS and retain END as the
+exclusive end. `bench_cnv_metrics()` compares assembly, type, contig, and
+exact interval separately from authority. It never scores opaque CNV IDs.
 
-The credible public milestone is an executable protocol plus measured fixture
-and public-spike-in results. It may describe the planned controlled clinical
-evaluation and blinded company-derived spike-ins. It must not claim clinical
-validation, Middle Eastern cohort performance, or incremental diagnostic yield
-before those studies and approvals exist.
+The cohort has a causal singleton SNV, a causal trio indel with called parental
+GQ/DP, benign distractors, no-call/low-quality contrasts, and the separately
+typed symbolic CNV. It does **not** simulate realistic exome/genome,
+ancestry/admixture, multiplex/consanguinity, general CNV/SV, or novel
+gene-disease historical holdouts; each has an explicit unsupported capability
+row.
+
+## Other metrics and temporal status
+
+`bench_sequence_metrics()` measures person-grain strict record/class/call/
+quality recovery. `call_status` is restricted to `called_alternate`,
+`called_reference`, `partial_no_call`, `no_call`, and `other_alternate`.
+`quality_status` is independently `pass`, `low_quality`, or `unavailable`;
+strict metrics include it. The synthetic fixture uses GQ >= 20 as pass, finite
+GQ < 20 as low quality, and missing GQ as unavailable. `bench_family_metrics()`
+scores relationships and inheritance separately.
+`bench_cnv_metrics()` scores assembly/type/interval and authority separately.
+`bench_reanalysis_metrics()` retains unavailable case units in denominators.
+
+Temporal case selection is unsupported. `bench_classification_diff()` remains
+a comparison over caller-provided `RClinVarbitration` decision relations with a
+fixed policy per release comparison. This package does not execute source
+snapshot anti-joins and does not accept a generic match count as proof.
+
+`_targets.R` generates separated input/truth bundles and validates their
+contracts. It does not fabricate candidate results or run an unspecified
+engine.

@@ -35,7 +35,7 @@ bench_validate_judgments <- function(judgments) {
     )
   }
   bench_choice_values(
-    judgments$target_type, c("variant", "variant_set", "gene"),
+    judgments$target_type, c("variant", "variant_set", "gene", "cnv"),
     "judgments$target_type"
   )
   bench_choice_values(
@@ -57,30 +57,7 @@ bench_validate_judgments <- function(judgments) {
 }
 
 bench_validate_source_spans <- function(start, end) {
-  if (length(start) != length(end)) {
-    stop("source span columns must have equal length", call. = FALSE)
-  }
-  start_missing <- is.na(start)
-  end_missing <- is.na(end)
-  if (any(xor(start_missing, end_missing))) {
-    stop(
-      "source spans must provide both span_start and span_end or neither",
-      call. = FALSE
-    )
-  }
-  present <- !start_missing
-  if (!any(present)) return(invisible(TRUE))
-  if (!is.numeric(start) || !is.numeric(end) ||
-      any(start[present] < 0 | start[present] != floor(start[present])) ||
-      any(end[present] < start[present] |
-          end[present] != floor(end[present]))) {
-    stop(
-      "source spans must be zero-based integer intervals with span_end ",
-      "greater than or equal to span_start",
-      call. = FALSE
-    )
-  }
-  invisible(TRUE)
+  bench_validate_half_open_spans(start, end, "source")
 }
 
 #' Validate exact source records for candidate judgments
@@ -114,7 +91,7 @@ bench_validate_judgment_sources <- function(judgment_sources) {
     )
   }
   bench_choice_values(
-    judgment_sources$target_type, c("variant", "variant_set", "gene"),
+    judgment_sources$target_type, c("variant", "variant_set", "gene", "cnv"),
     "judgment_sources$target_type"
   )
   bench_choice_values(

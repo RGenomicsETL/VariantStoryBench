@@ -1,6 +1,6 @@
 bench_manifest_kinds <- c(
-  "cases", "truth", "runs", "evaluations", "candidates", "judgments",
-  "judgment_sources"
+  "cases", "truth", "generations", "runs", "evaluations", "candidates",
+  "judgments", "judgment_sources"
 )
 
 bench_nonempty_text <- function(x, name) {
@@ -67,7 +67,7 @@ bench_validate_cases <- function(cases) {
   bench_nonempty_text(cases$case_id, "cases$case_id")
   bench_nonempty_text(cases$cohort, "cases$cohort")
   bench_choice_values(
-    cases$target_type, c("variant", "variant_set", "gene"),
+    cases$target_type, c("variant", "variant_set", "gene", "cnv"),
     "cases$target_type"
   )
   bench_choice_values(
@@ -89,7 +89,7 @@ bench_validate_truth <- function(truth) {
   bench_required_columns(truth, c("case_id", "target_type", "causal_id"))
   bench_nonempty_text(truth$case_id, "truth$case_id")
   bench_choice_values(
-    truth$target_type, c("variant", "variant_set", "gene"),
+    truth$target_type, c("variant", "variant_set", "gene", "cnv"),
     "truth$target_type"
   )
   bench_nonempty_text(truth$causal_id, "truth$causal_id")
@@ -97,6 +97,28 @@ bench_validate_truth <- function(truth) {
     truth, c("case_id", "target_type", "causal_id"), "truth"
   )
   invisible(truth)
+}
+
+bench_validate_generations <- function(generations) {
+  if (!is.data.frame(generations)) {
+    stop("generations must be a data frame", call. = FALSE)
+  }
+  bench_required_columns(
+    generations,
+    c("case_id", "generation_id", "assembly", "vcf_path", "case_design")
+  )
+  for (column in c("case_id", "generation_id", "assembly", "vcf_path", "case_design")) {
+    bench_nonempty_text(generations[[column]], paste0("generations$", column))
+  }
+  if (any(generations$assembly != "GRCh38")) {
+    stop("generations$assembly must currently be GRCh38", call. = FALSE)
+  }
+  bench_choice_values(
+    generations$case_design, c("singleton", "trio", "symbolic_cnv"),
+    "generations$case_design"
+  )
+  bench_unique_key(generations, "generation_id", "generations")
+  invisible(generations)
 }
 
 #' Validate benchmark run receipts
@@ -154,7 +176,7 @@ bench_validate_evaluations <- function(evaluations) {
   bench_nonempty_text(evaluations$run_id, "evaluations$run_id")
   bench_nonempty_text(evaluations$case_id, "evaluations$case_id")
   bench_choice_values(
-    evaluations$target_type, c("variant", "variant_set", "gene"),
+    evaluations$target_type, c("variant", "variant_set", "gene", "cnv"),
     "evaluations$target_type"
   )
   bench_choice_values(
@@ -170,7 +192,9 @@ bench_validate_evaluations <- function(evaluations) {
 #' Validate ranked candidate rows
 #'
 #' @param candidates Data frame with `run_id`, `case_id`, `target_type`,
-#'   `candidate_id`, and positive integer `rank`.
+#'   `candidate_id`, and positive integer `rank`. Ranks must be unique and
+#'   contiguous from one within each emitted case unit. Emitters break score
+#'   ties by `candidate_id` before assigning ranks.
 #' @return `candidates`, invisibly.
 #' @export
 bench_validate_candidates <- function(candidates) {
@@ -184,7 +208,7 @@ bench_validate_candidates <- function(candidates) {
   bench_nonempty_text(candidates$run_id, "candidates$run_id")
   bench_nonempty_text(candidates$case_id, "candidates$case_id")
   bench_choice_values(
-    candidates$target_type, c("variant", "variant_set", "gene"),
+    candidates$target_type, c("variant", "variant_set", "gene", "cnv"),
     "candidates$target_type"
   )
   bench_nonempty_text(candidates$candidate_id, "candidates$candidate_id")
@@ -194,14 +218,27 @@ bench_validate_candidates <- function(candidates) {
     c("run_id", "case_id", "target_type", "candidate_id"),
     "candidates"
   )
+  group_columns <- c("run_id", "case_id", "target_type")
+  group_key <- do.call(paste, c(candidates[group_columns], sep = "\034"))
+  groups <- split(candidates$rank, group_key, drop = TRUE)
+  invalid <- vapply(groups, function(ranks) {
+    !identical(sort(as.integer(ranks)), seq_len(length(ranks)))
+  }, logical(1))
+  if (any(invalid)) {
+    stop(
+      "candidates$ranks must be unique and contiguous from 1 within each run, case, and target",
+      call. = FALSE
+    )
+  }
   invisible(candidates)
 }
 
 #' Read and validate a benchmark manifest
 #'
 #' @param path CSV file path.
-#' @param kind One of `"cases"`, `"truth"`, `"runs"`, `"evaluations"`,
-#'   `"candidates"`, `"judgments"`, or `"judgment_sources"`.
+#' @param kind One of `"cases"`, `"truth"`, `"generations"`, `"runs"`,
+#'   `"evaluations"`, `"candidates"`, `"judgments"`, or
+#'   `"judgment_sources"`.
 #' @return A validated data frame.
 #' @export
 bench_read_manifest <- function(path, kind) {
@@ -276,6 +313,20 @@ bench_manifest_relations <- function(cases, truth, runs, evaluations,
   invisible(TRUE)
 }
 
+bench_generation_relations <- function(cases, truth, generations) {
+  bench_validate_cases(cases)
+  bench_validate_truth(truth)
+  bench_validate_generations(generations)
+  generated_cases <- unique(generations["case_id"])
+  case_keys <- unique(cases["case_id"])
+  if (nrow(merge(generated_cases, case_keys, by = "case_id")) !=
+      nrow(generated_cases) ||
+      nrow(merge(case_keys, generated_cases, by = "case_id")) != nrow(case_keys)) {
+    stop("generation rows must cover declared cases and only declared cases", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 bench_mean_or_na <- function(x) {
   if (length(x)) mean(x) else NA_real_
 }
@@ -290,7 +341,7 @@ bench_mean_or_na <- function(x) {
 #'   manifests.
 #' @param top_k Positive integer recall cutoffs.
 #' @param by Case columns used to stratify results. The default keeps gene,
-#'   variant, and variant-set tasks separate.
+#'   variant, variant-set, and CNV tasks separate.
 #' @return A data frame with one row per run and requested stratum.
 #' @export
 bench_rank_metrics <- function(

@@ -68,3 +68,28 @@ expect_error(
   bench_rank_metrics(cases, truth, runs, evaluations, bad_candidates),
   "completed evaluation"
 )
+
+duplicate_rank <- candidates
+idx <- duplicate_rank$case_id == "fixture-splice" &
+  duplicate_rank$run_id == "fixture-a-2026"
+duplicate_rank$rank[idx] <- 1L
+expect_error(bench_validate_candidates(duplicate_rank), "unique and contiguous")
+
+gapped_rank <- candidates
+idx <- gapped_rank$case_id == "fixture-splice" &
+  gapped_rank$run_id == "fixture-a-2026" & gapped_rank$rank == 3L
+gapped_rank$rank[idx] <- 4L
+expect_error(bench_validate_candidates(gapped_rank), "unique and contiguous")
+
+reanalysis <- bench_reanalysis_metrics(
+  cases, truth, runs, evaluations, candidates,
+  baseline_run_id = "fixture-b-2026",
+  reanalysis_run_id = "fixture-a-2026",
+  top_k = 1L
+)
+reanalysis_variant <- reanalysis[reanalysis$target_type == "variant", ]
+expect_equal(reanalysis_variant$known_causal_case_count, 2L)
+expect_equal(reanalysis_variant$baseline_unsupported_case_count, 0L)
+expect_equal(reanalysis_variant$top_k_recall_delta, 0.5)
+expect_equal(reanalysis_variant$recovered_gain_count, 1L)
+expect_equal(reanalysis_variant$rank_improved_count, 1L)

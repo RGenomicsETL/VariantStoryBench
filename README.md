@@ -3,11 +3,14 @@
 
 [![R-CMD-check](https://github.com/RGenomicsETL/VariantStoryBench/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/RGenomicsETL/VariantStoryBench/actions/workflows/R-CMD-check.yaml)
 
-VariantStoryBench is an R package for reproducible rare-disease variant
-reanalysis benchmarks. It validates explicit case, truth, run, coverage,
-and candidate manifests; calculates ranking and candidate-burden
-metrics; and provides an S7 adapter contract for running declared
-external engines.
+VariantStoryBench generates small sealed GRCh38 benchmark inputs and
+evaluates declared rare-disease prioritisation results against separate
+evaluator truth. It does not implement a prioritiser, generic command
+runner, workflow framework, or source ingestion/provenance system.
+
+[ARCHITECTURE.md](ARCHITECTURE.md) states the current boundary and
+[benchmark-contract.md](benchmark-contract.md) defines executable
+relations, coordinate conventions, and metric denominators.
 
 ## Install
 
@@ -15,177 +18,152 @@ external engines.
 remotes::install_github("RGenomicsETL/VariantStoryBench")
 ```
 
-## Comparable ranking metrics
+## Generate sealed inputs and evaluator truth
 
-The bundled fixture executes the same contract used for real runs. A
-failed or unsupported known-causal case remains a miss. An unresolved
-case is reported as unresolved candidate burden, not treated as a
-negative control.
+The generator writes singleton, trio, and symbolic-CNV VCFs with
+`vcfppR`. The engine-facing bundle contains only VCFs, GRCh38
+generations, persons with exact VCF sample IDs, family presentation, and
+clinical documents. `persons` has `case_id`, `person_id`,
+`vcf_sample_id`, `is_proband`, `sex`, and `affected`; `relationships`
+uses `case_id`, `person_id`, `relative_id`, and `relationship`. The
+evaluator-only bundle contains causal answers and latent observations.
+No reference result or oracle is supplied.
+
+The generated records use Ensembl GRCh38 primary-assembly contig names
+and these verified reference alleles:
+
+| VCF locus         | REF  | ALT                    |
+|:------------------|:-----|:-----------------------|
+| `1:100000`        | `C`  | `T`                    |
+| `1:100100`        | `T`  | `G`                    |
+| `2:199999-200000` | `TG` | `T`                    |
+| `2:200100`        | `T`  | `A`                    |
+| `2:200200`        | `A`  | `C`                    |
+| `2:200300`        | `T`  | `C`                    |
+| `7:549997`        | `T`  | `<DEL>` (`END=559997`) |
+
+These micro-coordinates were checked against Ensembl release 116 GRCh38
+primary assembly. The reference FASTA is not bundled with the package.
 
 ``` r
 library(VariantStoryBench)
 
-fixture <- function(name, kind) {
-  bench_read_manifest(
-    system.file("extdata", name, package = "VariantStoryBench"),
-    kind
-  )
+bundle <- bench_generate_micro_cohort(tempfile("variantstorybench-micro-"))
+paste(names(bundle$engine_input), collapse = ", ")
+#> [1] "case_manifest, generations, vcf_paths, persons, relationships, documents"
+paste(names(bundle$evaluator_truth), collapse = ", ")
+#> [1] "cases, truth, documents, hpo_observations, inheritance_truth, sequence_truth, cnv_truth, capabilities"
+bundle$engine_input$generations[, c("generation_id", "assembly", "case_design")]
+#>            generation_id assembly  case_design
+#> 1    micro-singleton-vcf   GRCh38    singleton
+#> 2         micro-trio-vcf   GRCh38         trio
+#> 3 micro-symbolic-cnv-vcf   GRCh38 symbolic_cnv
+```
+
+A text provider receives only a case ID, HPO/context presentation, and
+family relationships. It must return valid source text for every case,
+including an empty phenotype plan, and zero-based half-open spans for
+every presented HPO observation. The CNV note therefore has zero
+observations. It never receives causal truth.
+
+``` r
+provider <- function(presentation) {
+  # Call a configured gpt-5.3-spark or Rbebelm provider outside this package.
+  terms <- presentation$phenotype_plan
+  source_text <- if (nrow(terms)) {
+    paste(terms$hpo_id, collapse = "; ")
+  } else {
+    "No phenotype terms were supplied."
+  }
+  starts <- vapply(terms$hpo_id, function(id) {
+    regexpr(id, source_text, fixed = TRUE)[[1L]] - 1L
+  }, integer(1))
+  list(source_text = source_text, spans = data.frame(
+    hpo_id = terms$hpo_id,
+    context_status = terms$context_status,
+    start_offset = starts,
+    end_offset = starts + nchar(terms$hpo_id)
+  ))
 }
-
-metrics <- bench_rank_metrics(
-  cases = fixture("benchmark-cases.csv", "cases"),
-  truth = fixture("benchmark-truth.csv", "truth"),
-  runs = fixture("benchmark-runs.csv", "runs"),
-  evaluations = fixture("benchmark-evaluations.csv", "evaluations"),
-  candidates = fixture("benchmark-candidates.csv", "candidates"),
-  top_k = c(1L, 3L)
-)
-
-metrics[, c(
-  "run_id", "target_type", "case_count", "completed_case_count",
-  "known_causal_case_count", "top_1_recall", "top_3_recall",
-  "mean_candidate_burden"
-)]
-#>           run_id target_type case_count completed_case_count
-#> 1 fixture-a-2026        gene          1                    1
-#> 2 fixture-a-2026     variant          4                    4
-#> 3 fixture-a-2026 variant_set          1                    1
-#> 4 fixture-b-2026        gene          1                    0
-#> 5 fixture-b-2026     variant          4                    3
-#> 6 fixture-b-2026 variant_set          1                    1
-#>   known_causal_case_count top_1_recall top_3_recall mean_candidate_burden
-#> 1                       1          1.0          1.0              1.000000
-#> 2                       2          0.5          1.0              1.500000
-#> 3                       1          0.0          1.0              2.000000
-#> 4                       1          0.0          0.0                    NA
-#> 5                       2          0.0          0.5              1.666667
-#> 6                       1          1.0          1.0              1.000000
 ```
 
-The earlier compact `bench_read_results()` and `bench_metrics()` API
-remains available for simple one-engine summaries. New comparative work
-should use the relational manifest contract above.
-
-## Temporal ClinVar decisions
-
-ReVUS makes release-to-release classification change a benchmark target.
-RClinVarbitration adds a second useful axis: named submitter-exclusion
-policy. VariantStoryBench compares one axis at a time. A temporal
-comparison fixes the policy receipt; a policy-sensitivity comparison
-fixes the ClinVar release.
+Each source document has `case_id`, `document_id`, and `source_text`;
+there is one document and one proband for every case. The generated
+observations use the unchanged canonical `ducksemantics` HPO relation:
+`document_id`, `hpo_id`, exact source span/text, `context_status`,
+method, provider provenance, confidence, and accepted status. Case
+linkage is through `documents`, not extra semantic columns. Negated
+findings are `absent/negated`.
 
 ``` r
-changes <- bench_classification_diff(
-  disease_decisions,
-  left_release = "2022-06",
-  left_policy = "cpg-2.2.11/default",
-  right_release = "2026-07",
-  right_policy = "cpg-2.2.11/default"
-)
-
-bench_classification_diff_summary(changes)
+bench_hpo_metrics(
+  bundle$evaluator_truth$documents,
+  bundle$evaluator_truth$hpo_observations,
+  bundle$evaluator_truth$hpo_observations
+)[, c("term_recall", "context_recall", "span_recall")]
+#>   term_recall context_recall span_recall
+#> 1           1              1           1
 ```
 
-The comparison stays disease-level. It does not erase condition-specific
-evidence by reducing every allele to one label.
+## Declared engine results
 
-RClinVarbitration exports the canonical source-rich disease-decision
-Parquet, including stable record keys, complete-row content receipts,
-and nested SCV and RCV receipts. Register the Parquet, merge changed
-keys into the persistent DuckLake table, and obtain the exact changed
-rows with `ducklake::get_table_changes()`. `bench_classification_diff()`
-remains the engine-neutral benchmark summary over those declared
-snapshots; it does not reparse ClinVar, redefine SCV identity, or
-implement another snapshot engine.
-
-## Source-backed retrieval and judgments
-
-Phenotype, disease, literature, and gene-discovery retrieval is
-evaluated separately from candidate ranking. Embeddings and late
-interaction may retrieve candidate genes or analogous cases. A
-deterministic rule or local LLM may then judge a phenotype, inheritance,
-or mechanism claim, but every emitted judgment must identify the exact
-source relation, release, record, field, and, for narrative text, the
-exact span. If no source was retrieved, the engine abstains instead of
-manufacturing evidence.
+There is currently no bundled engine adapter. A caller may run a
+concrete sealed adapter outside the package, passing only
+`bundle$engine_input`, then supply declared `runs`, `evaluations`, and
+`candidates` to evaluation with `bundle$evaluator_truth`.
 
 ``` r
-judgments <- fixture("benchmark-judgments.csv", "judgments")
-judgment_sources <- fixture(
-  "benchmark-judgment-sources.csv", "judgment_sources"
+metrics <- bench_evaluate_micro_cohort(
+  bundle$evaluator_truth,
+  runs,
+  evaluations,
+  candidates
 )
-candidates <- fixture("benchmark-candidates.csv", "candidates")
-
-bench_grounding_metrics(judgments, judgment_sources, candidates)
-#>           run_id grounded_candidate_count judgment_count supports_count
-#> 1 fixture-a-2026                        1              2              1
-#>   contradicts_count insufficient_evidence_count mean_sources_per_judgment
-#> 1                 0                           1                       1.5
-#>   unique_source_record_count
-#> 1                          3
 ```
 
-ClinVar contributes disease-level assertions and linked publications; it
-is not treated as a complete phenotype-rich solved-case corpus. Public
-case reports, curated solved cases, gene-disease/mechanism sources, and
-permitted historical cases remain distinct source relations. The
-grounding summary measures audit coverage only. Scientific relevance,
-source-attribution precision, and judgment accuracy require separately
-adjudicated truth.
+Ranks are unique and contiguous per run/case/target, with score ties
+broken by candidate ID. Failed, skipped, and unsupported known-causal
+units remain ranking misses. Source spans are strictly nonempty
+zero-based half-open intervals.
 
-## Benchmark programme
+## CNV and other metrics
 
-The public benchmark separates:
+The symbolic deletion is a real `cnv` case with GRCh38, type, BED
+interval, and `XCNV` authority. VCF `POS=549997, END=559997` converts to
+BED `[549996, 559997)`. `bench_cnv_metrics()` scores
+assembly/type/interval and authority separately; it does not use opaque
+IDs.
 
-- deterministic software fixtures;
-- causal-event spike-ins in declared GIAB or 1000 Genomes backgrounds;
-- temporal holdouts such as ReVUS;
-- held-out public solved cases;
-- controlled clinical evaluation inside the approved data environment.
+`bench_sequence_metrics()` evaluates person-grain rows keyed by
+`case_id`, `person_id`, and `record_id`. `call_status` is one of
+`called_alternate`, `called_reference`, `partial_no_call`, `no_call`, or
+`other_alternate`; `quality_status` separately records `pass`,
+`low_quality`, or `unavailable`. The fixture uses GQ \>= 20 as pass,
+finite GQ \< 20 as low quality, and missing GQ as unavailable. Strict
+recovery includes both status columns. `bench_family_metrics()` and
+`bench_reanalysis_metrics()` retain their own explicit denominators.
 
-Variant, phased variant-set, and gene targets are scored separately. A
-gene-discovery stratum must use a historical knowledge cutoff so the
-candidate gene was absent from the engine’s admitted gene-disease and
-training sources. Talos’s established-disease-gene scope is compared as
-its own profile rather than counted as a failure on a task it does not
-claim to perform.
+The capability relation explicitly marks realistic exome/genome
+simulation, related ancestry/admixture, multiplex/consanguinity, general
+CNV/SV, and novel gene-disease historical holdouts as unsupported.
 
-The complete [benchmark contract](benchmark-contract.md) defines the
-relations, denominators, comparator rules, public/private data split,
-and the evidence that can credibly support the July 30 milestone.
+## Temporal status
 
-## External engines
-
-`BenchCommandAdapter` uses `blit` to run an executable with declared,
-quoted arguments. `{input}` and `{output}` are substituted before
-execution. `BenchRunner` is the S7 contract accepted by consumers of
-adapters.
-
-``` r
-adapter <- BenchCommandAdapter(
-  executable = "my-prioritizer",
-  arguments = c("--input", "{input}", "--output", "{output}")
-)
-
-run <- bench_execute(adapter, "case.vcf", "benchmark-output/case.csv")
-stopifnot(run@status == 0L)
-```
+Release-pinned temporal selection and source-snapshot anti-join proof
+are not implemented. `bench_classification_diff()` remains available for
+a caller-provided fixed-policy comparison of two RClinVarbitration
+decisions; this package does not accept generic anti-join counts as
+proof.
 
 ## Pipeline
 
-The repository contains a
-[`targets`](https://docs.ropensci.org/targets/) pipeline over the
-packaged synthetic manifest.
+[`targets`](https://docs.ropensci.org/targets/) generates separate
+engine-input and evaluator-truth targets and validates their contracts.
+It does not invent engine output.
 
 ``` r
-# From the package source directory:
 targets::tar_make(callr_function = NULL)
 ```
-
-The bundled fixture is synthetic. Add public or redistributable fixtures
-with their source, version, knowledge cutoff, and licence recorded
-alongside the data. Private VariantStory code and clinical data stay
-outside this public repository.
 
 ## Licence
 

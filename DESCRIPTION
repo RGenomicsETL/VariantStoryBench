@@ -8,26 +8,26 @@ Authors@R:
       email = "sounkoutoure@gmail.com",
       role = c("aut", "cre", "cph")
     )
-Description: Defines reproducible input manifests, command adapters and ranking
-    metrics for rare-disease variant reanalysis benchmarks. The package supports
-    deterministic fixtures, declared command execution through 'blit', and
-    'targets' pipelines for repeatable benchmark runs.
+Description: Generates small synthetic GRCh38 cases and latent truth, accepts
+    declared engine result relations, and calculates explicit-denominator
+    metrics for rare-disease variant prioritisation benchmarks. The package
+    supports deterministic VCF fixtures, canonical 'ducksemantics' HPO
+    observations, and 'targets' orchestration for repeatable benchmark runs.
 License: GPL-3 + file LICENSE
 URL: https://github.com/RGenomicsETL/VariantStoryBench
 BugReports: https://github.com/RGenomicsETL/VariantStoryBench/issues
 Depends:
     R (>= 4.4.0)
 Imports:
-    blit,
-    S7,
-    s7contract
+    ducksemantics,
+    vcfppR
 Suggests:
+    DBI,
     knitr,
+    Rduckhts,
     rmarkdown,
     targets,
     tinytest
-Remotes:
-    github::sounkou-bioinfo/s7contract
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.0.0

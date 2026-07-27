@@ -7,67 +7,39 @@ tar_option_set(
 
 list(
   tar_target(
-    cases,
-    bench_read_manifest(
-      system.file("extdata", "benchmark-cases.csv",
-                  package = "VariantStoryBench"),
-      "cases"
+    micro_bundle,
+    bench_generate_micro_cohort("benchmark-output/micro-cohort")
+  ),
+  tar_target(micro_engine_input, micro_bundle$engine_input),
+  tar_target(micro_evaluator_truth, micro_bundle$evaluator_truth),
+  tar_target(
+    micro_input_contract,
+    VariantStoryBench:::bench_validate_engine_input(micro_engine_input)
+  ),
+  tar_target(
+    micro_truth_contract,
+    VariantStoryBench:::bench_validate_evaluator_truth(micro_evaluator_truth)
+  ),
+  tar_target(
+    micro_hpo_truth_contract,
+    bench_hpo_metrics(
+      micro_evaluator_truth$documents,
+      micro_evaluator_truth$hpo_observations,
+      micro_evaluator_truth$hpo_observations
     )
   ),
   tar_target(
-    truth,
-    bench_read_manifest(
-      system.file("extdata", "benchmark-truth.csv",
-                  package = "VariantStoryBench"),
-      "truth"
+    micro_sequence_truth_contract,
+    bench_sequence_metrics(
+      micro_evaluator_truth$sequence_truth,
+      micro_evaluator_truth$sequence_truth
     )
   ),
   tar_target(
-    runs,
-    bench_read_manifest(
-      system.file("extdata", "benchmark-runs.csv",
-                  package = "VariantStoryBench"),
-      "runs"
+    micro_cnv_truth_contract,
+    bench_cnv_metrics(
+      micro_evaluator_truth$cnv_truth,
+      micro_evaluator_truth$cnv_truth
     )
-  ),
-  tar_target(
-    evaluations,
-    bench_read_manifest(
-      system.file("extdata", "benchmark-evaluations.csv",
-                  package = "VariantStoryBench"),
-      "evaluations"
-    )
-  ),
-  tar_target(
-    candidates,
-    bench_read_manifest(
-      system.file("extdata", "benchmark-candidates.csv",
-                  package = "VariantStoryBench"),
-      "candidates"
-    )
-  ),
-  tar_target(
-    judgments,
-    bench_read_manifest(
-      system.file("extdata", "benchmark-judgments.csv",
-                  package = "VariantStoryBench"),
-      "judgments"
-    )
-  ),
-  tar_target(
-    judgment_sources,
-    bench_read_manifest(
-      system.file("extdata", "benchmark-judgment-sources.csv",
-                  package = "VariantStoryBench"),
-      "judgment_sources"
-    )
-  ),
-  tar_target(
-    benchmark_metrics,
-    bench_rank_metrics(cases, truth, runs, evaluations, candidates)
-  ),
-  tar_target(
-    grounding_metrics,
-    bench_grounding_metrics(judgments, judgment_sources, candidates)
   )
 )

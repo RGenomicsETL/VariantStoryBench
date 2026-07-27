@@ -1,16 +1,63 @@
 # VariantStoryBench 0.1.0.9000
 
+- Corrected the generated micro-cohort to use Ensembl GRCh38 primary-assembly
+  contigs (`1`, `2`, and `7`) and verified REF alleles at `1:100000` (`C`),
+  `1:100100` (`T`), normalized deletion `2:199999-200000` (`TG` to `T`),
+  `2:200100` (`T`),
+  `2:200200` (`A`), `2:200300` (`T`), and normalized symbolic deletion
+  `7:549997` (`T` for `<DEL>`, `END=559997`). Causal/record IDs and CNV truth
+  now use those coordinates.
+  These micro-coordinates were checked against Ensembl release 116 GRCh38
+  primary assembly; no reference FASTA is bundled. Generated headers now use
+  the specification-valid `##fileformat=VCFv4.2` declaration.
+
+- Aligned sealed engine admission with VariantStory: added person-grain VCF
+  sample mappings, exact admitted relationship columns, one source document
+  per case (including empty CNV phenotype plans), and person-grain genotype
+  calls with separate quality status.
+- Expanded trio sequence fixtures to every sample/record and made strict
+  sequence metrics include `quality_status`; the fixture documents GQ >= 20
+  as pass, finite GQ < 20 as low quality, and missing GQ as unavailable.
+
+- Sealed generated engine inputs from evaluator truth: removed generated oracle
+  results and generic command adapters, and now return separate engine-input
+  and evaluator-truth bundles. The text provider receives phenotype/context
+  and family presentation only.
+- Replaced the local HPO shape with the canonical `ducksemantics` source
+  document and observation contract, including exact text/bounds validation
+  and `absent/negated` context.
+- Promoted the symbolic deletion to a typed `cnv` case with GRCh38/BED
+  coordinates and XCNV authority; CNV metrics now score
+  assembly/type/interval separately from authority.
+- Removed generic temporal anti-join-count validation and metrics. Temporal
+  source selection remains explicitly unsupported until executable source
+  relations exist.
+- Added sealed-bundle leakage, all-VCF Rduckhts round-trip, canonical HPO,
+  empty-denominator, and typed-CNV regression coverage.
+
+- Added `ARCHITECTURE.md` and an executable relation/metric benchmark
+  contract for synthetic generation, declared result relations, and evaluation.
+- Removed the lossy compact result reader, validator, metric, test, and
+  fixture. Comparative evaluation now uses the relational contract only.
+- Added a `vcfppR`-written GRCh38 micro-cohort with singleton and trio VCFs,
+  causal SNV/indel truth, benign distractors, parental GQ/DP, no-call and
+  low-quality contrasts, a symbolic XCNV fixture, latent HPO/pedigree truth,
+  provider-realised notes, and explicit unsupported capability rows.
+- Required candidate ranks to be unique and contiguous per emitted case unit
+  and required present source spans to be strictly nonempty zero-based,
+  half-open intervals.
+- Added HPO term/context/span, strict sequence status, family/inheritance,
+  CNV-authority, and reanalysis-delta metrics.
+- Changed the `targets` pipeline to generate and validate the micro-cohort
+  rather than read a compact fictional result CSV.
+
 - Replaced the initial documentation scaffold with an executable R package.
-- Added validated result manifests, ranking metrics, S7 command adapters,
-  `s7contract` conformance checks, `blit` execution, and a `targets` pipeline.
+- Added validated result manifests, ranking metrics, and a `targets` pipeline.
 - Added a comparative manifest contract for cases, causal answers, exact run
   receipts, per-case execution coverage, and ranked candidates.
 - Added coverage-aware top-k recall, mean reciprocal rank, and candidate-burden
   metrics that keep failed and unsupported cases visible and distinguish
   unresolved cases from confirmed negative controls.
-- Clarified that the original compact result format cannot distinguish an
-  unresolved case from a missed causal answer and is not suitable for
-  comparative recall claims.
 - Added an executable multi-engine fixture and a public benchmark protocol for
   spike-ins, temporal holdouts, public solved cases, gene discovery, and later
   controlled clinical evaluation.

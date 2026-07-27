@@ -21,7 +21,7 @@ manifests.}
 \item{top_k}{Positive integer recall cutoffs.}
 
 \item{by}{Case columns used to stratify results. The default keeps gene,
-variant, and variant-set tasks separate.}
+variant, variant-set, and CNV tasks separate.}
 }
 \value{
 A data frame with one row per run and requested stratum.

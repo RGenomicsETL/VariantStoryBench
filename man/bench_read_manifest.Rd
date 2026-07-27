@@ -9,8 +9,9 @@ bench_read_manifest(path, kind)
 \arguments{
 \item{path}{CSV file path.}
 
-\item{kind}{One of \code{"cases"}, \code{"truth"}, \code{"runs"}, \code{"evaluations"},
-\code{"candidates"}, \code{"judgments"}, or \code{"judgment_sources"}.}
+\item{kind}{One of \code{"cases"}, \code{"truth"}, \code{"generations"}, \code{"runs"},
+\code{"evaluations"}, \code{"candidates"}, \code{"judgments"}, or
+\code{"judgment_sources"}.}
 }
 \value{
 A validated data frame.

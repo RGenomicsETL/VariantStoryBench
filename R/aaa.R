@@ -1,12 +1,7 @@
-#' VariantStoryBench: reproducible variant reanalysis benchmarks
+#' VariantStoryBench: sealed variant-prioritisation benchmarks
 #'
-#' Tools for defining benchmark results, executing declared command adapters,
-#' and calculating ranking metrics.
+#' Tools for generating synthetic benchmark inputs and evaluating declared
+#' engine result relations against evaluator-only truth.
 #'
-#' @importFrom blit cmd_run cmd_wd exec
 #' @keywords internal
 "_PACKAGE"
-
-.onLoad <- function(libname, pkgname) {
-  S7::methods_register()
-}
