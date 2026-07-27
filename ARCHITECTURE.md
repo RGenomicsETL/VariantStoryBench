@@ -64,6 +64,13 @@ These micro-coordinates were checked against Ensembl release 116 GRCh38
 primary assembly. The package does not bundle the reference FASTA or provide a
 general reference validator.
 
+For the symbolic deletion, VCF `POS=549997` is the one-based padding/base-before-event
+coordinate and `END=559997` is the inclusive last affected base. The padding base
+is excluded from the affected span, so the BED half-open interval is
+`[549997, 559997)`: use VCF `POS` as the BED start and `END` as the exclusive
+end. This affected interval is `559997 - 549997 = 10,000` bp; the VCF itself
+remains unchanged.
+
 Every case emits one source document with `case_id`, including the CNV case
 whose phenotype plan is empty and whose observation count is zero. Canonical
 `ducksemantics` observations remain unchanged and link to a case only through
@@ -71,10 +78,12 @@ whose phenotype plan is empty and whose observation count is zero. Canonical
 
 Sequence truth is keyed by `case_id`, `person_id`, and `record_id`. Its
 `call_status` is one of `called_alternate`, `called_reference`,
-`partial_no_call`, `no_call`, or `other_alternate`; `quality_status` separately
-uses `pass`, `low_quality`, or `unavailable`. The fixture uses GQ >= 20 as pass,
-finite GQ < 20 as low quality, and missing GQ as unavailable. Strict sequence
-metrics include both dimensions.
+`partial_no_call`, `no_call`, or `other_alternate`, and `sequence_class` retains
+SNV, indel, or CNV truth. The inheritance and CNV truth relations likewise
+remain sealed for future scientific evaluation. No current public metric
+interprets the sequence, inheritance, or CNV truth relations. Raw GQ and DP
+remain only in generated VCF input and no GQ threshold is applied by the
+package.
 
 The `capabilities` relation marks realistic exome/genome simulation, related
 ancestry/admixture, multiplex/consanguinity, general CNV/SV, and novel

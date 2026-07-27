@@ -1,5 +1,21 @@
 # VariantStoryBench 0.1.0.9000
 
+- Removed the Bench-owned GQ quality policy and the unused sequence,
+  inheritance, CNV, and reanalysis recovery metrics. Sealed sequence,
+  inheritance, and CNV truth relations remain available for future scientific
+  evaluation, but no current public metric interprets them. Raw GQ/DP remain
+  only in generated VCF input.
+
+- Declared the GitHub remote for the non-CRAN `ducksemantics` import so clean
+  dependency resolution can install the package, and removed unrelated
+  development packages from the R-CMD-check workflow.
+
+- Corrected symbolic-CNV BED semantics in the micro-cohort: VCF `POS=549997`
+  is the one-based padding/base-before-event coordinate and `END=559997` is
+  the inclusive last affected base. Excluding the padding base gives the
+  affected interval `[549997, 559997)` (10,000 bp); the VCF remains unchanged,
+  while CNV IDs and evaluator truth now use this interval.
+
 - Corrected the generated micro-cohort to use Ensembl GRCh38 primary-assembly
   contigs (`1`, `2`, and `7`) and verified REF alleles at `1:100000` (`C`),
   `1:100100` (`T`), normalized deletion `2:199999-200000` (`TG` to `T`),
@@ -14,10 +30,9 @@
 - Aligned sealed engine admission with VariantStory: added person-grain VCF
   sample mappings, exact admitted relationship columns, one source document
   per case (including empty CNV phenotype plans), and person-grain genotype
-  calls with separate quality status.
-- Expanded trio sequence fixtures to every sample/record and made strict
-  sequence metrics include `quality_status`; the fixture documents GQ >= 20
-  as pass, finite GQ < 20 as low quality, and missing GQ as unavailable.
+  calls.
+- Expanded trio sequence fixtures to every sample/record and retained raw GQ/DP
+  fields only in the generated VCF inputs.
 
 - Sealed generated engine inputs from evaluator truth: removed generated oracle
   results and generic command adapters, and now return separate engine-input
@@ -40,14 +55,14 @@
 - Removed the lossy compact result reader, validator, metric, test, and
   fixture. Comparative evaluation now uses the relational contract only.
 - Added a `vcfppR`-written GRCh38 micro-cohort with singleton and trio VCFs,
-  causal SNV/indel truth, benign distractors, parental GQ/DP, no-call and
-  low-quality contrasts, a symbolic XCNV fixture, latent HPO/pedigree truth,
+  causal SNV/indel truth, benign distractors, raw parental GQ/DP fields,
+  no-call contrasts, a symbolic XCNV fixture, latent HPO/pedigree truth,
   provider-realised notes, and explicit unsupported capability rows.
 - Required candidate ranks to be unique and contiguous per emitted case unit
   and required present source spans to be strictly nonempty zero-based,
   half-open intervals.
-- Added HPO term/context/span, strict sequence status, family/inheritance,
-  CNV-authority, and reanalysis-delta metrics.
+- Added HPO term/context/span extraction metrics and retained sealed
+  sequence, inheritance, and CNV truth relations for future evaluation.
 - Changed the `targets` pipeline to generate and validate the micro-cohort
   rather than read a compact fictional result CSV.
 

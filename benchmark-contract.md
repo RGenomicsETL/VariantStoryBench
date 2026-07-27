@@ -78,7 +78,7 @@ zero rather than `NA`.
 | `generations` | One singleton, trio, and symbolic-CNV GRCh38 VCF written through `vcfppR`. |
 | `persons` | Singleton, all trio members, and the CNV proband, with exact VCF sample mappings. |
 | `relationships` | Latent trio presentation with two `biological_parent` edges. |
-| `sequence_truth` | Person-grain SNV/indel/CNV rows for every sample/record; genotype call and quality are separate. |
+| `sequence_truth` | Person-grain SNV/indel/CNV rows for every sample/record, retaining sequence class and genotype call status. |
 | `cnv_truth` | `case_id`, assembly, contig, CNV type, BED start/end, and authority. |
 | `capabilities` | Explicit `supported` or `unsupported` status and detail. |
 
@@ -100,13 +100,17 @@ primary assembly. The package does not bundle the reference FASTA or provide a
 general reference validator.
 
 The symbolic deletion is an actual `cnv` case in `cases`, `truth`, and emitted
-`evaluations`. Its VCF `POS=549997` and `END=559997` map to the BED half-open
-interval `[549996, 559997)`: subtract one from VCF POS and retain END as the
-exclusive end. `bench_cnv_metrics()` compares assembly, type, contig, and
-exact interval separately from authority. It never scores opaque CNV IDs.
+`evaluations`. Its VCF `POS=549997` is the one-based padding/base-before-event
+coordinate, and `END=559997` is the inclusive last affected base. Exclude the
+padding base when converting to the BED half-open affected interval:
+`[549997, 559997)` (use VCF `POS` as the BED start and `END` as the exclusive
+end). The affected interval is exactly `559997 - 549997 = 10,000` bp. The VCF
+remains unchanged. The sealed CNV truth retains assembly, type, contig,
+exact interval, and authority for future scientific evaluation; no current
+public metric interprets it and it never scores opaque CNV IDs.
 
-The cohort has a causal singleton SNV, a causal trio indel with called parental
-GQ/DP, benign distractors, no-call/low-quality contrasts, and the separately
+The cohort has a causal singleton SNV, a causal trio indel across every sample
+row, benign distractors, no-call contrasts, and the separately
 typed symbolic CNV. It does **not** simulate realistic exome/genome,
 ancestry/admixture, multiplex/consanguinity, general CNV/SV, or novel
 gene-disease historical holdouts; each has an explicit unsupported capability
@@ -114,15 +118,13 @@ row.
 
 ## Other metrics and temporal status
 
-`bench_sequence_metrics()` measures person-grain strict record/class/call/
-quality recovery. `call_status` is restricted to `called_alternate`,
-`called_reference`, `partial_no_call`, `no_call`, and `other_alternate`.
-`quality_status` is independently `pass`, `low_quality`, or `unavailable`;
-strict metrics include it. The synthetic fixture uses GQ >= 20 as pass, finite
-GQ < 20 as low quality, and missing GQ as unavailable. `bench_family_metrics()`
-scores relationships and inheritance separately.
-`bench_cnv_metrics()` scores assembly/type/interval and authority separately.
-`bench_reanalysis_metrics()` retains unavailable case units in denominators.
+The sealed `sequence_truth`, `inheritance_truth`, and `cnv_truth` relations are
+retained for future scientific evaluation. `sequence_truth` is keyed by
+`case_id`, `person_id`, and `record_id`, with `sequence_class` and `call_status`
+truth; the inheritance and CNV relations retain their declared structural
+fields and authorities. No current public metric interprets these relations.
+Raw GQ and DP remain only in generated VCF input, and the package applies no
+GQ threshold.
 
 Temporal case selection is unsupported. `bench_classification_diff()` remains
 a comparison over caller-provided `RClinVarbitration` decision relations with a

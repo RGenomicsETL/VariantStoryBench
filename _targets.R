@@ -27,19 +27,5 @@ list(
       micro_evaluator_truth$hpo_observations,
       micro_evaluator_truth$hpo_observations
     )
-  ),
-  tar_target(
-    micro_sequence_truth_contract,
-    bench_sequence_metrics(
-      micro_evaluator_truth$sequence_truth,
-      micro_evaluator_truth$sequence_truth
-    )
-  ),
-  tar_target(
-    micro_cnv_truth_contract,
-    bench_cnv_metrics(
-      micro_evaluator_truth$cnv_truth,
-      micro_evaluator_truth$cnv_truth
-    )
   )
 )

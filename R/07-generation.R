@@ -113,8 +113,7 @@ bench_validate_inheritance <- function(inheritance, name = "inheritance") {
 bench_validate_sequence_relation <- function(sequence, name = "sequence") {
   if (!is.data.frame(sequence)) stop(name, " must be a data frame", call. = FALSE)
   columns <- c(
-    "case_id", "person_id", "record_id", "sequence_class",
-    "call_status", "quality_status"
+    "case_id", "person_id", "record_id", "sequence_class", "call_status"
   )
   if (!identical(names(sequence), columns)) {
     stop(name, " must have exactly columns: ", paste(columns, collapse = ", "),
@@ -130,10 +129,6 @@ bench_validate_sequence_relation <- function(sequence, name = "sequence") {
     c("called_alternate", "called_reference", "partial_no_call",
       "no_call", "other_alternate"),
     paste0(name, "$call_status")
-  )
-  bench_choice_values(
-    sequence$quality_status, c("pass", "low_quality", "unavailable"),
-    paste0(name, "$quality_status")
   )
   bench_unique_key(sequence, c("case_id", "person_id", "record_id"), name)
   invisible(sequence)
@@ -158,19 +153,6 @@ bench_validate_cnv_authority <- function(cnv, name = "cnv") {
 
 bench_cnv_candidate_id <- function(assembly, contig, start, end, cnv_type) {
   paste(assembly, contig, start, end, cnv_type, sep = ":")
-}
-
-bench_sequence_quality_threshold <- 20
-
-bench_sequence_quality_status <- function(genotype_quality) {
-  if (!is.numeric(genotype_quality)) {
-    stop("genotype_quality must be numeric", call. = FALSE)
-  }
-  ifelse(
-    is.na(genotype_quality), "unavailable",
-    ifelse(genotype_quality >= bench_sequence_quality_threshold,
-           "pass", "low_quality")
-  )
 }
 
 bench_default_text_provider <- function(presentation) {
@@ -502,7 +484,7 @@ bench_generate_micro_cohort <- function(
     info = TRUE
   )
 
-  cnv_id <- bench_cnv_candidate_id("GRCh38", "7", 549996L, 559997L, "DEL")
+  cnv_id <- bench_cnv_candidate_id("GRCh38", "7", 549997L, 559997L, "DEL")
   cases <- data.frame(
     case_id = c("micro-singleton", "micro-trio", "micro-xcnv"),
     cohort = "synthetic-micro-grch38",
@@ -589,9 +571,6 @@ bench_generate_micro_cohort <- function(
     inheritance = c("unknown", "de_novo", "unknown"),
     stringsAsFactors = FALSE
   )
-  # Fixture quality semantics are deliberately independent of genotype status:
-  # GQ >= 20 is pass, finite GQ < 20 is low_quality, and missing GQ is
-  # unavailable. A strict sequence match includes both status dimensions.
   sequence_truth <- data.frame(
     case_id = c(
       rep("micro-singleton", 2L), rep("micro-trio", 12L), "micro-xcnv"
@@ -621,14 +600,6 @@ bench_generate_micro_cohort <- function(
       "called_reference", "called_reference", "called_reference",
       "called_alternate"
     ),
-    quality_status = bench_sequence_quality_status(c(
-      99, 78,
-      99, 99, 99,
-      72, 68, 70,
-      18, NA, NA,
-      8, 7, 8,
-      80
-    )),
     stringsAsFactors = FALSE
   )
   cnv_truth <- data.frame(
@@ -636,7 +607,7 @@ bench_generate_micro_cohort <- function(
     assembly = "GRCh38",
     contig = "7",
     cnv_type = "DEL",
-    start = 549996L,
+    start = 549997L,
     end = 559997L,
     authority_id = "XCNV",
     stringsAsFactors = FALSE

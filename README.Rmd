@@ -123,21 +123,22 @@ candidate ID. Failed, skipped, and unsupported known-causal units remain
 ranking misses. Source spans are strictly nonempty zero-based half-open
 intervals.
 
-## CNV and other metrics
+## Sealed scientific truth relations
+
+The evaluator-only bundle retains `sequence_truth`, `inheritance_truth`, and
+`cnv_truth` as sealed relations for future scientific evaluation. Their
+validators preserve person/record call semantics, inheritance rows, and the
+GRCh38 CNV authority and affected BED interval. No current public metric
+interprets these relations; they are not sent to an engine or text provider.
 
 The symbolic deletion is a real `cnv` case with GRCh38, type, BED interval,
-and `XCNV` authority. VCF `POS=549997, END=559997` converts to BED
-`[549996, 559997)`. `bench_cnv_metrics()` scores assembly/type/interval and
-authority separately; it does not use opaque IDs.
-
-`bench_sequence_metrics()` evaluates person-grain rows keyed by
-`case_id`, `person_id`, and `record_id`. `call_status` is one of
-`called_alternate`, `called_reference`, `partial_no_call`, `no_call`, or
-`other_alternate`; `quality_status` separately records `pass`, `low_quality`,
-or `unavailable`. The fixture uses GQ >= 20 as pass, finite GQ < 20 as low
-quality, and missing GQ as unavailable. Strict recovery includes both status
-columns. `bench_family_metrics()` and `bench_reanalysis_metrics()` retain their
-own explicit denominators.
+and `XCNV` authority. VCF `POS=549997` is the one-based padding/base-before-event
+coordinate, while `END=559997` is the inclusive last affected base. Excluding
+the padding base gives the affected BED half-open interval `[549997, 559997)`:
+use VCF `POS` as the BED start and `END` as the exclusive end. This is a
+10,000 bp affected interval. The VCF itself remains unchanged. Raw GQ and DP
+remain only in those generated VCF inputs; they are not evaluator truth
+columns and no GQ threshold is applied by the package.
 
 The capability relation explicitly marks realistic exome/genome simulation,
 related ancestry/admixture, multiplex/consanguinity, general CNV/SV, and novel

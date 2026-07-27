@@ -21,6 +21,8 @@ Depends:
 Imports:
     ducksemantics,
     vcfppR
+Remotes:
+    RGenomicsETL/ducksemantics
 Suggests:
     DBI,
     knitr,

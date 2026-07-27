@@ -90,13 +90,22 @@ expect_error(
 )
 expect_equal(engine_input$generations$assembly, rep("GRCh38", 3L))
 expect_equal(evaluator_truth$truth$causal_id, c(
-  "1:100000:C:T", "2:199999:TG:T", "GRCh38:7:549996:559997:DEL"
+  "1:100000:C:T", "2:199999:TG:T", "GRCh38:7:549997:559997:DEL"
+))
+expect_equal(names(evaluator_truth$sequence_truth), c(
+  "case_id", "person_id", "record_id", "sequence_class", "call_status"
 ))
 expect_equal(unique(evaluator_truth$sequence_truth$record_id), c(
   "1:100000:C:T", "1:100100:T:G", "2:199999:TG:T", "2:200100:T:A",
-  "2:200200:A:C", "2:200300:T:C", "GRCh38:7:549996:559997:DEL"
+  "2:200200:A:C", "2:200300:T:C", "GRCh38:7:549997:559997:DEL"
 ))
 expect_equal(evaluator_truth$cnv_truth$contig, "7")
+expect_equal(evaluator_truth$cnv_truth$start, 549997L)
+expect_equal(evaluator_truth$cnv_truth$end, 559997L)
+expect_equal(
+  evaluator_truth$cnv_truth$end - evaluator_truth$cnv_truth$start,
+  10000L
+)
 expect_equal(sort(unique(evaluator_truth$hpo_observations$context_status)), c(
   "absent/negated", "family_history", "present", "uncertain"
 ))
@@ -209,43 +218,10 @@ expect_equal(empty_hpo$term_truth_count, 0L)
 expect_true(is.na(empty_hpo$term_f1))
 expect_false(is.nan(empty_hpo$term_f1))
 
-sequence <- bench_sequence_metrics(
-  evaluator_truth$sequence_truth, evaluator_truth$sequence_truth
-)
-expect_equal(sequence$sequence_truth_count, 15L)
-expect_equal(sequence$strict_sequence_correct_count, 15L)
-expect_equal(sequence$quality_status_correct_count, 15L)
-expect_equal(sequence$strict_sequence_accuracy, 1)
 expect_equal(
   unname(as.integer(table(evaluator_truth$sequence_truth$case_id))),
   c(2L, 12L, 1L)
 )
-empty_sequence <- evaluator_truth$sequence_truth[FALSE, ]
-empty_sequence_metrics <- bench_sequence_metrics(empty_sequence, empty_sequence)
-expect_true(is.na(empty_sequence_metrics$strict_sequence_accuracy))
-expect_false(is.nan(empty_sequence_metrics$strict_sequence_accuracy))
-
-family <- bench_family_metrics(
-  engine_input$relationships, evaluator_truth$inheritance_truth,
-  engine_input$relationships, evaluator_truth$inheritance_truth
-)
-expect_equal(family$relationship_true_positive_count, 2L)
-expect_equal(family$relationship_recall, 1)
-expect_equal(family$inheritance_true_positive_count, 3L)
-expect_equal(family$inheritance_recall, 1)
-
-cnv <- bench_cnv_metrics(evaluator_truth$cnv_truth, evaluator_truth$cnv_truth)
-expect_equal(cnv$cnv_interval_recall, 1)
-expect_equal(cnv$cnv_authority_recall, 1)
-wrong_authority <- evaluator_truth$cnv_truth
-wrong_authority$authority_id <- "sequence_vcf"
-wrong_cnv <- bench_cnv_metrics(evaluator_truth$cnv_truth, wrong_authority)
-expect_equal(wrong_cnv$cnv_interval_recall, 1)
-expect_equal(wrong_cnv$cnv_authority_recall, 0)
-wrong_interval <- evaluator_truth$cnv_truth
-wrong_interval$end <- wrong_interval$end - 1L
-interval_cnv <- bench_cnv_metrics(evaluator_truth$cnv_truth, wrong_interval)
-expect_equal(interval_cnv$cnv_interval_recall, 0)
 
 runs <- data.frame(
   run_id = "sealed-fixture",
