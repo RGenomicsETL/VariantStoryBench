@@ -32,15 +32,15 @@ No reference result or oracle is supplied.
 The generated records use Ensembl GRCh38 primary-assembly contig names
 and these verified reference alleles:
 
-| VCF locus         | REF  | ALT                    |
-|:------------------|:-----|:-----------------------|
-| `1:100000`        | `C`  | `T`                    |
-| `1:100100`        | `T`  | `G`                    |
-| `2:199999-200000` | `TG` | `T`                    |
-| `2:200100`        | `T`  | `A`                    |
-| `2:200200`        | `A`  | `C`                    |
-| `2:200300`        | `T`  | `C`                    |
-| `7:549997`        | `T`  | `<DEL>` (`END=559997`) |
+| VCF locus         | REF   | ALT                     |
+|:------------------|:------|:------------------------|
+| `1:100000`        | `C`   | `T`                     |
+| `1:100100-100102` | `TGC` | `TC` (canonical `TG>T`) |
+| `2:199999-200000` | `TG`  | `T`                     |
+| `2:200100`        | `T`   | `A`                     |
+| `2:200200`        | `A`   | `C`                     |
+| `2:200300`        | `T`   | `C`                     |
+| `7:549997`        | `T`   | `<DEL>` (`END=559997`)  |
 
 These micro-coordinates were checked against Ensembl release 116 GRCh38
 primary assembly. The reference FASTA is not bundled with the package.
@@ -52,7 +52,7 @@ bundle <- bench_generate_micro_cohort(tempfile("variantstorybench-micro-"))
 paste(names(bundle$engine_input), collapse = ", ")
 #> [1] "case_manifest, generations, vcf_paths, persons, relationships, documents"
 paste(names(bundle$evaluator_truth), collapse = ", ")
-#> [1] "cases, truth, documents, hpo_observations, inheritance_truth, sequence_truth, cnv_truth, capabilities"
+#> [1] "cases, truth, documents, hpo_observations, inheritance_truth, allele_truth, genotype_truth, cnv_truth, capabilities"
 bundle$engine_input$generations[, c("generation_id", "assembly", "case_design")]
 #>            generation_id assembly  case_design
 #> 1    micro-singleton-vcf   GRCh38    singleton
@@ -137,12 +137,13 @@ PM2. The broad provider pack is not a benchmark output.
 
 ## Sealed scientific truth relations
 
-The evaluator-only bundle retains `sequence_truth`, `inheritance_truth`,
-and `cnv_truth` as sealed relations for future scientific evaluation.
-Their validators preserve person/record call semantics, inheritance
-rows, and the GRCh38 CNV authority and affected BED interval. No current
-public metric interprets these relations; they are not sent to an engine
-or text provider.
+The evaluator-only bundle retains source/canonical `allele_truth`,
+person-grain `genotype_truth`, `inheritance_truth`, and `cnv_truth` as
+sealed relations. `bench_allele_transport_metrics()` compares source and
+canonical GRCh38 geometry by record/ALT ordinal.
+`bench_genotype_transport_metrics()` compares GT, GQ, DP, ploidy, phase,
+and call state without applying a GQ threshold. These truth relations
+are not sent to an engine or text provider.
 
 The symbolic deletion is a real `cnv` case with GRCh38, type, BED
 interval, and `XCNV` authority. VCF `POS=549997` is the one-based
@@ -150,9 +151,8 @@ padding/base-before-event coordinate, while `END=559997` is the
 inclusive last affected base. Excluding the padding base gives the
 affected BED half-open interval `[549997, 559997)`: use VCF `POS` as the
 BED start and `END` as the exclusive end. This is a 10,000 bp affected
-interval. The VCF itself remains unchanged. Raw GQ and DP remain only in
-those generated VCF inputs; they are not evaluator truth columns and no
-GQ threshold is applied by the package.
+interval. The VCF itself remains unchanged. Exact GQ and DP are genotype
+transport truth, not evidence-policy thresholds.
 
 The capability relation explicitly marks realistic exome/genome
 simulation, related ancestry/admixture, multiplex/consanguinity, general

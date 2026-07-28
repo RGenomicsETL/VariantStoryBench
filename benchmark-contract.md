@@ -12,7 +12,7 @@ admission boundaries, not two views of one engine payload.
 | Bundle | Relations | Contract |
 |---|---|---|
 | `engine_input` | `case_manifest`, `generations`, `vcf_paths`, `persons`, `relationships`, `documents` | Contains only GRCh38 VCFs and family/clinical presentation. It must not contain causal IDs, evaluator truth, a reference result, or an oracle. |
-| `evaluator_truth` | `cases`, `truth`, `documents`, `hpo_observations`, `inheritance_truth`, `sequence_truth`, `cnv_truth`, `capabilities` | Kept outside provider and engine input. It is supplied only to evaluation. |
+| `evaluator_truth` | `cases`, `truth`, `documents`, `hpo_observations`, `inheritance_truth`, `allele_truth`, `genotype_truth`, `cnv_truth`, `capabilities` | Kept outside provider and engine input. It is supplied only to evaluation. |
 
 The text provider receives only `case_id`, `phenotype_plan` (`hpo_id` and
 `context_status`), and relationships. It never receives causal variant or gene
@@ -33,6 +33,8 @@ validated core result relations.
 | `runs` | `run_id` | Declares engine/version/source/profile/cutoff/resources and run status. |
 | `evaluations` | `run_id`, `case_id`, `target_type` | Contains exactly one row for every run × case unit; status is completed, failed, unsupported, or skipped. |
 | `candidates` | run/case/target/candidate | Candidates belong only to completed evaluations. Ranks are unique and contiguous from 1 per emitted case unit; emitters break score ties by `candidate_id`. |
+| `allele_observations` | case/source record/ALT ordinal | Preserves source and canonical GRCh38 geometry, sequence class, and admission status. |
+| `genotype_observations` | case/person/source record/ALT ordinal | Preserves GT, GQ, DP, ploidy, phase, and explicit call state without a quality threshold. |
 | `frequency_observations` | case/allele/provider row | Keeps exact case identity, shard localization, match/filter/observation state, provider-row multiplicity, global and group-maximum AC/AN/AF, and FAF95/FAF99. Zero-row matches have one explicit placeholder and no fabricated provider identity. |
 | `judgments` / `judgment_sources` | claim key / source key | Directional judgments cite matching source stance. Present spans are zero-based, half-open, and strictly nonempty. |
 
@@ -87,7 +89,8 @@ zero rather than `NA`.
 | `generations` | One singleton, trio, and symbolic-CNV GRCh38 VCF written through `vcfppR`. |
 | `persons` | Singleton, all trio members, and the CNV proband, with exact VCF sample mappings. |
 | `relationships` | Latent trio presentation with two `biological_parent` edges. |
-| `sequence_truth` | Person-grain SNV/indel/CNV rows for every sample/record, retaining sequence class and genotype call status. |
+| `allele_truth` | One row per case/source-record/ALT ordinal, retaining source and expected canonical geometry, sequence class, and admission status. |
+| `genotype_truth` | One row for every person and allele, retaining exact GT/GQ/DP, ploidy, phase, and call status. |
 | `cnv_truth` | `case_id`, assembly, contig, CNV type, BED start/end, and authority. |
 | `capabilities` | Explicit `supported` or `unsupported` status and detail. |
 
@@ -97,7 +100,7 @@ verified reference alleles:
 | VCF locus | REF | ALT |
 |:--|:--|:--|
 | `1:100000` | `C` | `T` |
-| `1:100100` | `T` | `G` |
+| `1:100100-100102` | `TGC` | `TC` (canonical `TG>T`) |
 | `2:199999-200000` | `TG` | `T` |
 | `2:200100` | `T` | `A` |
 | `2:200200` | `A` | `C` |
@@ -127,13 +130,14 @@ row.
 
 ## Other metrics and temporal status
 
-The sealed `sequence_truth`, `inheritance_truth`, and `cnv_truth` relations are
-retained for future scientific evaluation. `sequence_truth` is keyed by
-`case_id`, `person_id`, and `record_id`, with `sequence_class` and `call_status`
-truth; the inheritance and CNV relations retain their declared structural
-fields and authorities. No current public metric interprets these relations.
-Raw GQ and DP remain only in generated VCF input, and the package applies no
-GQ threshold.
+The sealed `allele_truth` relation is keyed by case/source-record/ALT ordinal;
+`genotype_truth` adds person grain. `bench_allele_transport_metrics()` compares
+source and canonical geometry, class, and admission status.
+`bench_genotype_transport_metrics()` compares GT/GQ/DP, ploidy, phase, and call
+state after rejecting internally inconsistent GT summaries. Missing or
+unexpected identity rows remain explicit counts. The package applies no GQ
+threshold. Inheritance and CNV relations retain their declared structural
+fields and authorities for future evaluation.
 
 Temporal case selection is unsupported. `bench_classification_diff()` remains
 a comparison over caller-provided `RClinVarbitration` decision relations with a

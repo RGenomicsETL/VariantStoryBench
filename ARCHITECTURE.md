@@ -13,7 +13,7 @@ or a ClinVar/literature/Monarch loader.
 | Boundary | Package responsibility | Outside this package |
 |---|---|---|
 | Engine input | GRCh38 VCF paths/generations, persons with exact VCF sample IDs, case/relationship presentation, and clinical source documents | A concrete engine adapter and its output parser |
-| Evaluator truth | Causal answers, person-grain identity around canonical HPO observations, sequence/CNV truth, and capability rows | Engine access and clinical evidence policy |
+| Evaluator truth | Causal answers, person-grain identity around canonical HPO observations, source/canonical allele truth, exact genotype transport truth, CNV truth, and capability rows | Engine access and clinical evidence policy |
 | Clinical prose | Call a supplied provider with phenotype/context and family presentation only | Prompt/model configuration, including gpt-5.3-spark or Rbebelm |
 | Evaluation | Validate declared relations, including typed case-frequency observations, and calculate explicit-denominator metrics | Clinical adjudication |
 
@@ -28,8 +28,8 @@ or a ClinVar/literature/Monarch loader.
    every VCF sample is admitted through that mapping. It has no causal answer,
    truth, reference, or oracle relation.
 2. `evaluator_truth`: cases, causal truth, case/person/observation identity
-   around canonical `ducksemantics` HPO fields, sequence/CNV truth, and
-   capabilities. It is not passed to the
+   around canonical `ducksemantics` HPO fields, source/canonical `allele_truth`,
+   person-grain `genotype_truth`, CNV truth, and capabilities. It is not passed to the
    prose provider or an engine.
 
 `bench_evaluate_micro_cohort()` accepts only `evaluator_truth` and declared
@@ -58,7 +58,7 @@ verified reference alleles:
 | VCF locus | REF | ALT |
 |:--|:--|:--|
 | `1:100000` | `C` | `T` |
-| `1:100100` | `T` | `G` |
+| `1:100100-100102` | `TGC` | `TC` (canonical `TG>T`) |
 | `2:199999-200000` | `TG` | `T` |
 | `2:200100` | `T` | `A` |
 | `2:200200` | `A` | `C` |
@@ -82,14 +82,16 @@ HPO rows add `case_id`, `person_id`, and `observation_id` around unchanged
 canonical `ducksemantics` fields. The text provider receives no causal truth;
 metrics retain person grain so findings cannot move silently between relatives.
 
-Sequence truth is keyed by `case_id`, `person_id`, and `record_id`. Its
-`call_status` is one of `called_alternate`, `called_reference`,
-`partial_no_call`, `no_call`, or `other_alternate`, and `sequence_class` retains
-SNV, indel, or CNV truth. The inheritance and CNV truth relations likewise
-remain sealed for future scientific evaluation. No current public metric
-interprets the sequence, inheritance, or CNV truth relations. Raw GQ and DP
-remain only in generated VCF input and no GQ threshold is applied by the
-package.
+`allele_truth` is keyed by case/source-record/ALT ordinal and preserves exact
+source and expected canonical GRCh38 geometry, sequence class, and admission
+status. The `TGC>TC` fixture is canonically suffix-minimized to `TG>T` without
+requiring a reference lookup. `genotype_truth` adds person grain and preserves
+exact GT, GQ, DP, ploidy, phase, and call state; its call state is one of
+`called_alternate`, `called_reference`, `partial_no_call`, `no_call`, or
+`other_alternate`. Public transport metrics compare engine-neutral relations
+with sealed truth. GQ/DP are not interpreted as a Bench quality threshold. The
+inheritance and CNV truth relations remain sealed for future scientific
+evaluation.
 
 The `capabilities` relation marks realistic exome/genome simulation, related
 ancestry/admixture, multiplex/consanguinity, general CNV/SV, and novel

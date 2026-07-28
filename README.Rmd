@@ -41,7 +41,7 @@ these verified reference alleles:
 | VCF locus | REF | ALT |
 |:--|:--|:--|
 | `1:100000` | `C` | `T` |
-| `1:100100` | `T` | `G` |
+| `1:100100-100102` | `TGC` | `TC` (canonical `TG>T`) |
 | `2:199999-200000` | `TG` | `T` |
 | `2:200100` | `T` | `A` |
 | `2:200200` | `A` | `C` |
@@ -133,20 +133,20 @@ and never assigns PM2. The broad provider pack is not a benchmark output.
 
 ## Sealed scientific truth relations
 
-The evaluator-only bundle retains `sequence_truth`, `inheritance_truth`, and
-`cnv_truth` as sealed relations for future scientific evaluation. Their
-validators preserve person/record call semantics, inheritance rows, and the
-GRCh38 CNV authority and affected BED interval. No current public metric
-interprets these relations; they are not sent to an engine or text provider.
+The evaluator-only bundle retains source/canonical `allele_truth`, person-grain
+`genotype_truth`, `inheritance_truth`, and `cnv_truth` as sealed relations.
+`bench_allele_transport_metrics()` compares source and canonical GRCh38
+geometry by record/ALT ordinal. `bench_genotype_transport_metrics()` compares
+GT, GQ, DP, ploidy, phase, and call state without applying a GQ threshold.
+These truth relations are not sent to an engine or text provider.
 
 The symbolic deletion is a real `cnv` case with GRCh38, type, BED interval,
 and `XCNV` authority. VCF `POS=549997` is the one-based padding/base-before-event
 coordinate, while `END=559997` is the inclusive last affected base. Excluding
 the padding base gives the affected BED half-open interval `[549997, 559997)`:
 use VCF `POS` as the BED start and `END` as the exclusive end. This is a
-10,000 bp affected interval. The VCF itself remains unchanged. Raw GQ and DP
-remain only in those generated VCF inputs; they are not evaluator truth
-columns and no GQ threshold is applied by the package.
+10,000 bp affected interval. The VCF itself remains unchanged. Exact GQ and DP
+are genotype transport truth, not evidence-policy thresholds.
 
 The capability relation explicitly marks realistic exome/genome simulation,
 related ancestry/admixture, multiplex/consanguinity, general CNV/SV, and novel

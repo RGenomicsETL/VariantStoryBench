@@ -92,13 +92,31 @@ expect_equal(engine_input$generations$assembly, rep("GRCh38", 3L))
 expect_equal(evaluator_truth$truth$causal_id, c(
   "1:100000:C:T", "2:199999:TG:T", "GRCh38:7:549997:559997:DEL"
 ))
-expect_equal(names(evaluator_truth$sequence_truth), c(
-  "case_id", "person_id", "record_id", "sequence_class", "call_status"
+expect_equal(names(evaluator_truth$allele_truth), c(
+  "case_id", "record_ordinal", "alt_ordinal", "assembly", "source_contig",
+  "source_position", "source_reference", "source_alternate",
+  "canonical_contig", "canonical_position", "canonical_reference",
+  "canonical_alternate", "sequence_class", "admission_status"
 ))
-expect_equal(unique(evaluator_truth$sequence_truth$record_id), c(
-  "1:100000:C:T", "1:100100:T:G", "2:199999:TG:T", "2:200100:T:A",
-  "2:200200:A:C", "2:200300:T:C", "GRCh38:7:549997:559997:DEL"
+expect_equal(names(evaluator_truth$genotype_truth), c(
+  "case_id", "person_id", "record_ordinal", "alt_ordinal", "gt", "gq",
+  "dp", "ploidy", "phased", "call_status"
 ))
+trimmed <- evaluator_truth$allele_truth[
+  evaluator_truth$allele_truth$case_id == "micro-singleton" &
+    evaluator_truth$allele_truth$record_ordinal == 2L, , drop = FALSE
+]
+expect_equal(trimmed$source_reference, "TGC")
+expect_equal(trimmed$source_alternate, "TC")
+expect_equal(trimmed$canonical_reference, "TG")
+expect_equal(trimmed$canonical_alternate, "T")
+expect_equal(
+  evaluator_truth$genotype_truth$phased[
+    evaluator_truth$genotype_truth$case_id == "micro-singleton" &
+      evaluator_truth$genotype_truth$record_ordinal == 2L
+  ],
+  TRUE
+)
 expect_equal(evaluator_truth$cnv_truth$contig, "7")
 expect_equal(evaluator_truth$cnv_truth$start, 549997L)
 expect_equal(evaluator_truth$cnv_truth$end, 559997L)
@@ -164,9 +182,11 @@ expect_true(grepl(
 singleton <- vcfppR::vcftable(engine_input$vcf_paths[["singleton"]], format = "GQ")
 expect_equal(singleton$chr, c("1", "1"))
 expect_equal(singleton$pos, c(100000, 100100))
-expect_equal(singleton$ref, c("C", "T"))
-expect_equal(singleton$alt, c("T", "G"))
+expect_equal(singleton$ref, c("C", "TGC"))
+expect_equal(singleton$alt, c("T", "TC"))
 expect_equal(as.integer(singleton$GQ[, 1L]), c(99L, 78L))
+singleton_lines <- readLines(gzfile(engine_input$vcf_paths[["singleton"]]))
+expect_true(any(grepl("0|1:78:31", singleton_lines, fixed = TRUE)))
 
 trio <- vcfppR::vcftable(engine_input$vcf_paths[["trio"]], format = "GQ")
 expect_equal(trio$chr, rep("2", 4L))
@@ -246,8 +266,54 @@ expect_true(is.na(empty_hpo$term_f1))
 expect_false(is.nan(empty_hpo$term_f1))
 
 expect_equal(
-  unname(as.integer(table(evaluator_truth$sequence_truth$case_id))),
+  unname(as.integer(table(evaluator_truth$allele_truth$case_id))),
+  c(2L, 4L, 1L)
+)
+expect_equal(
+  unname(as.integer(table(evaluator_truth$genotype_truth$case_id))),
   c(2L, 12L, 1L)
+)
+allele_transport <- bench_allele_transport_metrics(
+  evaluator_truth$allele_truth, evaluator_truth$allele_truth
+)
+expect_equal(allele_transport$exact_row_count, 7L)
+expect_equal(allele_transport$exact_recall, 1)
+wrong_allele <- evaluator_truth$allele_truth
+wrong_allele$canonical_alternate[[2L]] <- "G"
+wrong_allele_transport <- bench_allele_transport_metrics(
+  evaluator_truth$allele_truth, wrong_allele
+)
+expect_equal(wrong_allele_transport$exact_row_count, 6L)
+expect_equal(wrong_allele_transport$exact_recall, 6 / 7)
+missing_allele_transport <- bench_allele_transport_metrics(
+  evaluator_truth$allele_truth, evaluator_truth$allele_truth[-2L, ]
+)
+expect_equal(missing_allele_transport$missing_row_count, 1L)
+
+genotype_transport <- bench_genotype_transport_metrics(
+  evaluator_truth$genotype_truth, evaluator_truth$genotype_truth
+)
+expect_equal(genotype_transport$exact_row_count, 15L)
+expect_equal(genotype_transport$exact_recall, 1)
+wrong_genotype <- evaluator_truth$genotype_truth
+wrong_genotype$gq[[1L]] <- 98
+wrong_genotype_transport <- bench_genotype_transport_metrics(
+  evaluator_truth$genotype_truth, wrong_genotype
+)
+expect_equal(wrong_genotype_transport$exact_row_count, 14L)
+inconsistent_genotype <- evaluator_truth$genotype_truth
+inconsistent_genotype$phased[[2L]] <- FALSE
+expect_error(
+  bench_genotype_transport_metrics(
+    evaluator_truth$genotype_truth, inconsistent_genotype
+  ),
+  "GT conflicts"
+)
+leaky_allele <- bundle
+leaky_allele$evaluator_truth$allele_truth$alt_ordinal[[1L]] <- 2L
+expect_error(
+  VariantStoryBench:::bench_validate_micro_cohort(leaky_allele),
+  "cover every person and admitted allele"
 )
 
 runs <- data.frame(

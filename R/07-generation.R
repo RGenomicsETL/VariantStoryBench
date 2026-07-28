@@ -135,28 +135,124 @@ bench_validate_inheritance <- function(inheritance, name = "inheritance") {
   invisible(inheritance)
 }
 
-bench_validate_sequence_relation <- function(sequence, name = "sequence") {
-  if (!is.data.frame(sequence)) stop(name, " must be a data frame", call. = FALSE)
+bench_validate_allele_truth <- function(alleles, name = "allele_truth") {
+  if (!is.data.frame(alleles)) stop(name, " must be a data frame", call. = FALSE)
   columns <- c(
-    "case_id", "person_id", "record_id", "sequence_class", "call_status"
+    "case_id", "record_ordinal", "alt_ordinal", "assembly", "source_contig",
+    "source_position", "source_reference", "source_alternate",
+    "canonical_contig", "canonical_position", "canonical_reference",
+    "canonical_alternate", "sequence_class", "admission_status"
   )
-  if (!identical(names(sequence), columns)) {
+  if (!identical(names(alleles), columns)) {
     stop(name, " must have exactly columns: ", paste(columns, collapse = ", "),
          call. = FALSE)
   }
-  for (column in c("case_id", "person_id", "record_id")) {
-    bench_nonempty_text(sequence[[column]], paste0(name, "$", column))
+  for (column in c(
+    "case_id", "assembly", "source_contig", "source_reference",
+    "source_alternate", "canonical_contig", "canonical_reference",
+    "canonical_alternate", "sequence_class", "admission_status"
+  )) {
+    bench_nonempty_text(alleles[[column]], paste0(name, "$", column))
   }
-  bench_choice_values(sequence$sequence_class, c("SNV", "indel", "CNV"),
-                      paste0(name, "$sequence_class"))
+  if (any(alleles$assembly != "GRCh38")) {
+    stop(name, " must use GRCh38", call. = FALSE)
+  }
+  for (column in c(
+    "record_ordinal", "alt_ordinal", "source_position", "canonical_position"
+  )) {
+    bench_integer_values(alleles[[column]], paste0(name, "$", column), 1L)
+  }
   bench_choice_values(
-    sequence$call_status,
+    alleles$sequence_class, c("SNV", "indel", "CNV"),
+    paste0(name, "$sequence_class")
+  )
+  bench_choice_values(
+    alleles$admission_status, c("supported", "routed_symbolic_cnv"),
+    paste0(name, "$admission_status")
+  )
+  if (any((alleles$sequence_class == "CNV") !=
+          (alleles$admission_status == "routed_symbolic_cnv"))) {
+    stop(name, " CNV class and symbolic routing status conflict", call. = FALSE)
+  }
+  bench_unique_key(alleles, c("case_id", "record_ordinal", "alt_ordinal"), name)
+  invisible(alleles)
+}
+
+bench_gt_state <- function(gt, alt_ordinal) {
+  if (grepl("/", gt, fixed = TRUE) && grepl("|", gt, fixed = TRUE)) {
+    stop("GT cannot mix phased and unphased separators", call. = FALSE)
+  }
+  alleles <- strsplit(gt, "[/|]")[[1L]]
+  if (!length(alleles) || any(!grepl("^([0-9]+|[.])$", alleles))) {
+    stop("GT must contain VCF allele indexes or missing alleles", call. = FALSE)
+  }
+  called <- alleles[alleles != "."]
+  status <- if (!length(called)) {
+    "no_call"
+  } else if (length(called) != length(alleles)) {
+    "partial_no_call"
+  } else if (any(as.integer(called) == alt_ordinal)) {
+    "called_alternate"
+  } else if (all(called == "0")) {
+    "called_reference"
+  } else {
+    "other_alternate"
+  }
+  list(
+    ploidy = length(alleles),
+    phased = grepl("|", gt, fixed = TRUE),
+    call_status = status
+  )
+}
+
+bench_validate_genotype_truth <- function(genotypes, name = "genotype_truth") {
+  if (!is.data.frame(genotypes)) stop(name, " must be a data frame", call. = FALSE)
+  columns <- c(
+    "case_id", "person_id", "record_ordinal", "alt_ordinal", "gt", "gq",
+    "dp", "ploidy", "phased", "call_status"
+  )
+  if (!identical(names(genotypes), columns)) {
+    stop(name, " must have exactly columns: ", paste(columns, collapse = ", "),
+         call. = FALSE)
+  }
+  for (column in c("case_id", "person_id", "gt", "call_status")) {
+    bench_nonempty_text(genotypes[[column]], paste0(name, "$", column))
+  }
+  for (column in c("record_ordinal", "alt_ordinal", "ploidy")) {
+    bench_integer_values(genotypes[[column]], paste0(name, "$", column), 1L)
+  }
+  for (column in c("gq", "dp")) {
+    bench_nonnegative_values(
+      genotypes[[column]], paste0(name, "$", column), missing = TRUE
+    )
+    value <- genotypes[[column]]
+    if (any(value[!is.na(value)] != floor(value[!is.na(value)]))) {
+      stop(name, "$", column, " must contain integer values", call. = FALSE)
+    }
+  }
+  if (!is.logical(genotypes$phased) || anyNA(genotypes$phased)) {
+    stop(name, "$phased must contain non-missing logical values", call. = FALSE)
+  }
+  bench_choice_values(
+    genotypes$call_status,
     c("called_alternate", "called_reference", "partial_no_call",
       "no_call", "other_alternate"),
     paste0(name, "$call_status")
   )
-  bench_unique_key(sequence, c("case_id", "person_id", "record_id"), name)
-  invisible(sequence)
+  states <- Map(bench_gt_state, genotypes$gt, genotypes$alt_ordinal)
+  derived_ploidy <- unname(vapply(states, `[[`, integer(1L), "ploidy"))
+  derived_phased <- unname(vapply(states, `[[`, logical(1L), "phased"))
+  derived_status <- unname(vapply(states, `[[`, character(1L), "call_status"))
+  if (!identical(as.integer(genotypes$ploidy), derived_ploidy) ||
+      !identical(genotypes$phased, derived_phased) ||
+      !identical(genotypes$call_status, derived_status)) {
+    stop(name, " GT conflicts with ploidy, phase, or call status", call. = FALSE)
+  }
+  bench_unique_key(
+    genotypes,
+    c("case_id", "person_id", "record_ordinal", "alt_ordinal"), name
+  )
+  invisible(genotypes)
 }
 
 bench_validate_cnv_authority <- function(cnv, name = "cnv") {
@@ -416,7 +512,7 @@ bench_validate_engine_input <- function(engine_input) {
 bench_validate_evaluator_truth <- function(evaluator_truth) {
   required <- c(
     "cases", "truth", "documents", "hpo_observations", "inheritance_truth",
-    "sequence_truth", "cnv_truth", "capabilities"
+    "allele_truth", "genotype_truth", "cnv_truth", "capabilities"
   )
   if (!is.list(evaluator_truth) || !identical(sort(names(evaluator_truth)), sort(required))) {
     stop("evaluator_truth must contain the declared evaluator-only relations", call. = FALSE)
@@ -426,7 +522,8 @@ bench_validate_evaluator_truth <- function(evaluator_truth) {
     evaluator_truth$documents, evaluator_truth$hpo_observations
   )
   bench_validate_inheritance(evaluator_truth$inheritance_truth, "inheritance_truth")
-  bench_validate_sequence_relation(evaluator_truth$sequence_truth, "sequence_truth")
+  bench_validate_allele_truth(evaluator_truth$allele_truth, "allele_truth")
+  bench_validate_genotype_truth(evaluator_truth$genotype_truth, "genotype_truth")
   bench_validate_cnv_authority(evaluator_truth$cnv_truth, "cnv_truth")
   bench_validate_capabilities(evaluator_truth$capabilities)
   invisible(evaluator_truth)
@@ -442,14 +539,31 @@ bench_validate_micro_cohort <- function(bundle) {
     bundle$evaluator_truth$cases, bundle$evaluator_truth$truth,
     bundle$engine_input$generations
   )
-  sequence_people <- unique(
-    bundle$evaluator_truth$sequence_truth[c("case_id", "person_id")]
-  )
   declared_people <- bundle$engine_input$persons[c("case_id", "person_id")]
-  if (nrow(sequence_people) != nrow(declared_people) ||
-      nrow(merge(sequence_people, declared_people,
+  genotype_people <- unique(
+    bundle$evaluator_truth$genotype_truth[c("case_id", "person_id")]
+  )
+  if (nrow(genotype_people) != nrow(declared_people) ||
+      nrow(merge(genotype_people, declared_people,
                  by = c("case_id", "person_id"))) != nrow(declared_people)) {
-    stop("sequence truth must identify every declared person exactly", call. = FALSE)
+    stop("genotype truth must identify every declared person exactly", call. = FALSE)
+  }
+  expected_genotypes <- merge(
+    bundle$evaluator_truth$allele_truth[
+      c("case_id", "record_ordinal", "alt_ordinal")
+    ],
+    declared_people,
+    by = "case_id"
+  )
+  observed_genotypes <- bundle$evaluator_truth$genotype_truth[
+    c("case_id", "record_ordinal", "alt_ordinal", "person_id")
+  ]
+  genotype_key <- c("case_id", "person_id", "record_ordinal", "alt_ordinal")
+  if (nrow(observed_genotypes) != nrow(expected_genotypes) ||
+      nrow(merge(observed_genotypes, expected_genotypes, by = genotype_key)) !=
+        nrow(expected_genotypes)) {
+    stop("genotype truth must cover every person and admitted allele exactly",
+         call. = FALSE)
   }
   hpo_people <- unique(
     bundle$evaluator_truth$hpo_observations[c("case_id", "person_id")]
@@ -505,7 +619,7 @@ bench_generate_micro_cohort <- function(
     vcf_paths[["singleton"]], "1", "MICRO_SINGLETON",
     c(
       "1\t100000\t.\tC\tT\t60\tPASS\t.\tGT:GQ:DP\t0/1:99:36",
-      "1\t100100\t.\tT\tG\t60\tPASS\t.\tGT:GQ:DP\t0/1:78:31"
+      "1\t100100\t.\tTGC\tTC\t60\tPASS\t.\tGT:GQ:DP\t0|1:78:31"
     )
   )
   bench_write_vcf(
@@ -615,7 +729,28 @@ bench_generate_micro_cohort <- function(
     inheritance = c("unknown", "de_novo", "unknown"),
     stringsAsFactors = FALSE
   )
-  sequence_truth <- data.frame(
+  allele_truth <- data.frame(
+    case_id = c(
+      rep("micro-singleton", 2L), rep("micro-trio", 4L), "micro-xcnv"
+    ),
+    record_ordinal = c(1:2, 1:4, 1),
+    alt_ordinal = rep(1L, 7L),
+    assembly = rep("GRCh38", 7L),
+    source_contig = c(rep("1", 2L), rep("2", 4L), "7"),
+    source_position = c(100000L, 100100L, 199999L, 200100L, 200200L,
+                        200300L, 549997L),
+    source_reference = c("C", "TGC", "TG", "T", "A", "T", "T"),
+    source_alternate = c("T", "TC", "T", "A", "C", "C", "<DEL>"),
+    canonical_contig = c(rep("1", 2L), rep("2", 4L), "7"),
+    canonical_position = c(100000L, 100100L, 199999L, 200100L, 200200L,
+                           200300L, 549997L),
+    canonical_reference = c("C", "TG", "TG", "T", "A", "T", "T"),
+    canonical_alternate = c("T", "T", "T", "A", "C", "C", "<DEL>"),
+    sequence_class = c("SNV", "indel", "indel", "SNV", "SNV", "SNV", "CNV"),
+    admission_status = c(rep("supported", 6L), "routed_symbolic_cnv"),
+    stringsAsFactors = FALSE
+  )
+  genotype_truth <- data.frame(
     case_id = c(
       rep("micro-singleton", 2L), rep("micro-trio", 12L), "micro-xcnv"
     ),
@@ -624,24 +759,22 @@ bench_generate_micro_cohort <- function(
       rep(c("MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER"), 4L),
       "MICRO_CNV_PROBAND"
     ),
-    record_id = c(
-      "1:100000:C:T", "1:100100:T:G",
-      rep(c(
-        "2:199999:TG:T", "2:200100:T:A", "2:200200:A:C",
-        "2:200300:T:C"
-      ), each = 3L),
-      cnv_id
+    record_ordinal = c(1L, 2L, rep(1:4, each = 3L), 1L),
+    alt_ordinal = rep(1L, 15L),
+    gt = c(
+      "0/1", "0|1", "0/1", "0/0", "0/0", "0/1", "0/0", "0/0",
+      "0/1", "0/.", "./.", "0/1", "0/0", "0/0", "0/1"
     ),
-    sequence_class = c(
-      rep("SNV", 2L), rep(c("indel", "SNV", "SNV", "SNV"), each = 3L),
-      "CNV"
-    ),
+    gq = c(99, 78, 99, 99, 99, 72, 68, 70, 18, NA, NA, 8, 7, 8, 80),
+    dp = c(36, 31, 42, 39, 40, 30, 28, 29, 5, NA, NA, 3, 3, 3, 22),
+    ploidy = rep(2L, 15L),
+    phased = c(FALSE, TRUE, rep(FALSE, 13L)),
     call_status = c(
       "called_alternate", "called_alternate",
       "called_alternate", "called_reference", "called_reference",
       "called_alternate", "called_reference", "called_reference",
       "called_alternate", "partial_no_call", "no_call",
-      "called_reference", "called_reference", "called_reference",
+      "called_alternate", "called_reference", "called_reference",
       "called_alternate"
     ),
     stringsAsFactors = FALSE
@@ -689,7 +822,8 @@ bench_generate_micro_cohort <- function(
       documents = documents,
       hpo_observations = hpo_observations,
       inheritance_truth = inheritance_truth,
-      sequence_truth = sequence_truth,
+      allele_truth = allele_truth,
+      genotype_truth = genotype_truth,
       cnv_truth = cnv_truth,
       capabilities = capabilities
     )

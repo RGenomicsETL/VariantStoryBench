@@ -1,5 +1,12 @@
 # VariantStoryBench 0.1.0.9000
 
+- Split coarse sequence truth into exact `allele_truth` and `genotype_truth`.
+  The former preserves source and expected canonical GRCh38 geometry by source
+  record/ALT ordinal, including one deliberately suffix-minimized indel; the
+  latter preserves GT, GQ, DP, ploidy, phase, and call state per person.
+  `bench_allele_transport_metrics()` and `bench_genotype_transport_metrics()`
+  now score engine-neutral output without exposing evaluator truth to engines.
+
 - Added `bench_validate_frequency_observations()` as an engine-neutral typed
   case-frequency contract. It preserves provider-row multiplicity and rejects
   fabricated absence, collapsed conflicts, AC/AN/status contradictions,
@@ -11,11 +18,10 @@
   metrics include case/person grain so moving a relative's phenotype to the
   proband cannot score as an exact match.
 
-- Removed the Bench-owned GQ quality policy and the unused sequence,
-  inheritance, CNV, and reanalysis recovery metrics. Sealed sequence,
-  inheritance, and CNV truth relations remain available for future scientific
-  evaluation, but no current public metric interprets them. Raw GQ/DP remain
-  only in generated VCF input.
+- Removed the Bench-owned GQ quality policy and the unused inheritance, CNV,
+  and reanalysis recovery metrics. GQ/DP transport is now exact truth rather
+  than a Bench-owned quality threshold; inheritance and CNV truth remain sealed
+  for future scientific evaluation.
 
 - Pinned the tested GitHub revisions of the non-CRAN `ducksemantics` import and
   the `Rduckhts` monorepo subpackage so clean dependency resolution installs the
@@ -30,7 +36,7 @@
 
 - Corrected the generated micro-cohort to use Ensembl GRCh38 primary-assembly
   contigs (`1`, `2`, and `7`) and verified REF alleles at `1:100000` (`C`),
-  `1:100100` (`T`), normalized deletion `2:199999-200000` (`TG` to `T`),
+  `1:100100-100102` (`TGC`), normalized deletion `2:199999-200000` (`TG` to `T`),
   `2:200100` (`T`),
   `2:200200` (`A`), `2:200300` (`T`), and normalized symbolic deletion
   `7:549997` (`T` for `<DEL>`, `END=559997`). Causal/record IDs and CNV truth
@@ -44,7 +50,7 @@
   per case (including empty CNV phenotype plans), and person-grain genotype
   calls.
 - Expanded trio sequence fixtures to every sample/record and retained raw GQ/DP
-  fields only in the generated VCF inputs.
+  fields for exact transport checks without defining a quality threshold.
 
 - Sealed generated engine inputs from evaluator truth: removed generated oracle
   results and generic command adapters, and now return separate engine-input
