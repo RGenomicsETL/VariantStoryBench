@@ -1,5 +1,10 @@
 # VariantStoryBench 0.1.0.9000
 
+- Added `bench_validate_frequency_observations()` as an engine-neutral typed
+  case-frequency contract. It preserves provider-row multiplicity and rejects
+  fabricated absence, collapsed conflicts, AC/AN/status contradictions,
+  incorrect AF derivation, and shard-localization drift.
+
 - Wrapped the unchanged canonical `ducksemantics` HPO fields with explicit
   `case_id`, `person_id`, and `observation_id` evaluator identity. Validation
   now rejects document/case mismatch and undeclared people, and extraction

@@ -125,6 +125,12 @@ candidate ID. Failed, skipped, and unsupported known-causal units remain
 ranking misses. Source spans are strictly nonempty zero-based half-open
 intervals.
 
+A frequency-capable adapter may additionally emit the narrow typed
+case-frequency relation validated by `bench_validate_frequency_observations()`.
+The validator keeps absent rows, unlocalized shards, provider conflicts,
+filtering, missing values, AC=0/AN>0, and AN=0 distinct; it checks AF arithmetic
+and never assigns PM2. The broad provider pack is not a benchmark output.
+
 ## Sealed scientific truth relations
 
 The evaluator-only bundle retains `sequence_truth`, `inheritance_truth`, and

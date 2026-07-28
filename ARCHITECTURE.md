@@ -15,7 +15,7 @@ or a ClinVar/literature/Monarch loader.
 | Engine input | GRCh38 VCF paths/generations, persons with exact VCF sample IDs, case/relationship presentation, and clinical source documents | A concrete engine adapter and its output parser |
 | Evaluator truth | Causal answers, person-grain identity around canonical HPO observations, sequence/CNV truth, and capability rows | Engine access and clinical evidence policy |
 | Clinical prose | Call a supplied provider with phenotype/context and family presentation only | Prompt/model configuration, including gpt-5.3-spark or Rbebelm |
-| Evaluation | Validate declared relations and calculate explicit-denominator metrics | Clinical adjudication |
+| Evaluation | Validate declared relations, including typed case-frequency observations, and calculate explicit-denominator metrics | Clinical adjudication |
 
 ## Sealed data flow
 
@@ -36,7 +36,11 @@ or a ClinVar/literature/Monarch loader.
 `runs`, `evaluations`, and `candidates`. No reference result is generated.
 There is currently no bundled engine adapter: execution remains unsupported
 until a concrete adapter accepts the complete `engine_input` bundle and emits
-validated result relations.
+validated result relations. The public
+`bench_validate_frequency_observations()` contract can validate an adapter's
+case-frequency output without loading VariantStory or rebuilding its provider
+fixture. It keeps provider-row multiplicity and match/filter/observation state
+explicit; it is not a PM2 evaluator.
 
 ## Current synthetic scope
 

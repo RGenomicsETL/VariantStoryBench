@@ -33,12 +33,15 @@ validated core result relations.
 | `runs` | `run_id` | Declares engine/version/source/profile/cutoff/resources and run status. |
 | `evaluations` | `run_id`, `case_id`, `target_type` | Contains exactly one row for every run × case unit; status is completed, failed, unsupported, or skipped. |
 | `candidates` | run/case/target/candidate | Candidates belong only to completed evaluations. Ranks are unique and contiguous from 1 per emitted case unit; emitters break score ties by `candidate_id`. |
+| `frequency_observations` | case/allele/provider row | Keeps exact case identity, shard localization, match/filter/observation state, provider-row multiplicity, global and group-maximum AC/AN/AF, and FAF95/FAF99. Zero-row matches have one explicit placeholder and no fabricated provider identity. |
 | `judgments` / `judgment_sources` | claim key / source key | Directional judgments cite matching source stance. Present spans are zero-based, half-open, and strictly nonempty. |
 
 `bench_rank_metrics()` includes failed, skipped, and unsupported known-causal
 units as misses. It reports unresolved and confirmed-negative burden
 separately. `bench_grounding_metrics()` is source-audit coverage, not evidence
-correctness.
+correctness. `bench_validate_frequency_observations()` is independent of a
+VariantStory builder: it validates the declared typed output relation and its
+negative-state invariants, not provider-pack construction.
 
 ## Persons, relationships, documents, and HPO observations
 
