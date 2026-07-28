@@ -2,12 +2,12 @@
 
 **Current executable authority:** validators and metrics in `R/`, with
 regressions in `inst/tinytest/`. [ARCHITECTURE.md](ARCHITECTURE.md) defines the
-package boundary.
+package responsibilities.
 
 ## Sealed generation bundles
 
 `bench_generate_micro_cohort()` returns two bundles. They are separate
-admission boundaries, not two views of one engine payload.
+separate data-access contracts, not two views of one engine payload.
 
 | Bundle | Relations | Contract |
 |---|---|---|
@@ -147,10 +147,14 @@ unexpected identity rows remain explicit counts. The package applies no GQ
 threshold. Inheritance and CNV relations retain their declared structural
 fields and authorities for future evaluation.
 
-Temporal case selection is unsupported. `bench_classification_diff()` remains
-a comparison over caller-provided `RClinVarbitration` decision relations with a
-fixed policy per release comparison. This package does not execute source
-snapshot anti-joins and does not accept a generic match count as proof.
+Executable temporal case selection is unsupported. The selected provider
+epochs, admissibility rules, ClinVar transition task, case-reanalysis task,
+PM5 truth, and controlled LLM document authoring are specified in
+[temporal-benchmark.md](temporal-benchmark.md). `bench_classification_diff()`
+remains a comparison over caller-provided `RClinVarbitration` decision
+relations with a fixed policy per release comparison. This package does not
+execute source snapshot anti-joins and does not accept a generic match count as
+proof.
 
 `_targets.R` generates separated input/truth bundles and validates their
 contracts. It does not fabricate candidate results or run an unspecified

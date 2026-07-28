@@ -78,9 +78,11 @@
 - Promoted the symbolic deletion to a typed `cnv` case with GRCh38/BED
   coordinates and XCNV authority; CNV metrics now score
   assembly/type/interval separately from authority.
-- Removed generic temporal anti-join-count validation and metrics. Temporal
-  source selection remains explicitly unsupported until executable source
-  relations exist.
+- Removed generic temporal anti-join-count validation and metrics. Executable
+  source selection remains unsupported, but the first temporal release now has
+  selected provider-specific availability epochs, ClinVar-transition and case-
+  reanalysis tracks, exact PM5 truth rules, and a receipt-bound LLM document-
+  authoring design.
 - Added sealed-bundle leakage, all-VCF Rduckhts round-trip, canonical HPO,
   empty-denominator, and typed-CNV regression coverage.
 

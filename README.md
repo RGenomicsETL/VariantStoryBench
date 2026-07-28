@@ -8,9 +8,10 @@ evaluates declared rare-disease prioritisation results against separate
 evaluator truth. It does not implement a prioritiser, generic command
 runner, workflow framework, or source ingestion/provenance system.
 
-[ARCHITECTURE.md](ARCHITECTURE.md) states the current boundary and
-[benchmark-contract.md](benchmark-contract.md) defines executable
-relations, coordinate conventions, and metric denominators.
+[ARCHITECTURE.md](ARCHITECTURE.md) states the current package
+responsibilities and [benchmark-contract.md](benchmark-contract.md)
+defines executable relations, coordinate conventions, and metric
+denominators.
 
 ## Install
 
@@ -170,11 +171,15 @@ CNV/SV, and novel gene-disease historical holdouts as unsupported.
 
 ## Temporal status
 
-Release-pinned temporal selection and source-snapshot anti-join proof
-are not implemented. `bench_classification_diff()` remains available for
-a caller-provided fixed-policy comparison of two RClinVarbitration
-decisions; this package does not accept generic anti-join counts as
-proof.
+Executable temporal selection is not implemented. The selected
+first-release design uses provider-specific availability epochs
+(`2024-01-23` and `2026-07-21`), a ReVUS-aligned ClinVar transition
+track, case reanalysis, PM5 first-seen evidence, and receipt-bound
+case-document authoring. See
+[`temporal-benchmark.md`](temporal-benchmark.md).
+`bench_classification_diff()` remains available for a caller-provided
+fixed-policy comparison of two RClinVarbitration decisions; generic
+anti-join counts are not accepted as proof.
 
 ## Pipeline
 

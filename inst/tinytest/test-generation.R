@@ -86,7 +86,7 @@ for (i in seq_len(nrow(engine_input$generations))) {
   expect_equal(samples, expected)
 }
 leaky_input <- engine_input
-leaky_input$case_manifest$causal_id <- "must-not-cross-boundary"
+leaky_input$case_manifest$causal_id <- "must-not-enter-engine-input"
 expect_error(
   VariantStoryBench:::bench_validate_engine_input(leaky_input),
   "cannot contain evaluator truth"

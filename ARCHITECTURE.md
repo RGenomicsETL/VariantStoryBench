@@ -1,7 +1,7 @@
 # VariantStoryBench architecture
 
 **Current authority:** the relation validators and metrics in `R/`, exercised by
-`inst/tinytest/`. This document states current boundaries, not a delivery plan.
+`inst/tinytest/`. This document states current package responsibilities, not a delivery plan.
 
 VariantStoryBench generates small synthetic GRCh38 benchmark inputs and keeps
 evaluator truth separate. It validates declared result relations and calculates
@@ -10,7 +10,7 @@ does not implement a diagnostic prioritiser, a workflow framework, generic
 command execution, production source semantics, source provenance/checksums,
 or a ClinVar/literature/Monarch loader.
 
-| Boundary | Package responsibility | Outside this package |
+| Work area | Package responsibility | Outside this package |
 |---|---|---|
 | Engine input | GRCh38 VCF paths/generations, persons with exact VCF sample IDs, case/relationship presentation, and clinical source documents | A concrete engine adapter and its output parser |
 | Evaluator truth | Causal answers with explicit REF/ALT role, person-grain identity around canonical HPO observations, source/canonical allele truth, exact genotype transport truth, CNV truth, and capability rows | Engine access and clinical evidence policy |
@@ -107,11 +107,13 @@ gene-disease historical holdouts as `unsupported`.
 
 ## Temporal selection
 
-Release-pinned ClinVar and source-snapshot/anti-join temporal selection are
-**unsupported** here. The package retains the existing
-`bench_classification_diff()` comparison over caller-provided decisions, but
-does not accept a caller-supplied anti-join count as proof. A temporal
-benchmark requires executable source relations before it can be measured.
+Executable temporal case selection remains **unsupported**. The first release
+design selects provider-specific E0 and E1 availability cutoffs, an exact
+ClinVar transition track, a case-reanalysis track, PM5 first-seen truth, and
+receipt-bound case-document authoring. See
+[temporal-benchmark.md](temporal-benchmark.md). The package retains
+`bench_classification_diff()` for caller-provided decisions, but does not
+accept a caller-supplied anti-join count as proof.
 
 See [benchmark-contract.md](benchmark-contract.md) for relation schemas,
 coordinate conventions, and metric denominators.
