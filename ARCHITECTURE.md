@@ -13,7 +13,7 @@ or a ClinVar/literature/Monarch loader.
 | Boundary | Package responsibility | Outside this package |
 |---|---|---|
 | Engine input | GRCh38 VCF paths/generations, persons with exact VCF sample IDs, case/relationship presentation, and clinical source documents | A concrete engine adapter and its output parser |
-| Evaluator truth | Causal answers, canonical HPO observations, sequence/CNV truth, and capability rows | Engine access and clinical evidence policy |
+| Evaluator truth | Causal answers, person-grain identity around canonical HPO observations, sequence/CNV truth, and capability rows | Engine access and clinical evidence policy |
 | Clinical prose | Call a supplied provider with phenotype/context and family presentation only | Prompt/model configuration, including gpt-5.3-spark or Rbebelm |
 | Evaluation | Validate declared relations and calculate explicit-denominator metrics | Clinical adjudication |
 
@@ -27,8 +27,9 @@ or a ClinVar/literature/Monarch loader.
    (with admitted `affected`/`unaffected`/`unknown` values);
    every VCF sample is admitted through that mapping. It has no causal answer,
    truth, reference, or oracle relation.
-2. `evaluator_truth`: cases, causal truth, canonical `ducksemantics` HPO
-   observations, sequence/CNV truth, and capabilities. It is not passed to the
+2. `evaluator_truth`: cases, causal truth, case/person/observation identity
+   around canonical `ducksemantics` HPO fields, sequence/CNV truth, and
+   capabilities. It is not passed to the
    prose provider or an engine.
 
 `bench_evaluate_micro_cohort()` accepts only `evaluator_truth` and declared
@@ -72,9 +73,10 @@ end. This affected interval is `559997 - 549997 = 10,000` bp; the VCF itself
 remains unchanged.
 
 Every case emits one source document with `case_id`, including the CNV case
-whose phenotype plan is empty and whose observation count is zero. Canonical
-`ducksemantics` observations remain unchanged and link to a case only through
-`documents`; the text provider receives no causal truth.
+whose phenotype plan is empty and whose observation count is zero. Evaluator
+HPO rows add `case_id`, `person_id`, and `observation_id` around unchanged
+canonical `ducksemantics` fields. The text provider receives no causal truth;
+metrics retain person grain so findings cannot move silently between relatives.
 
 Sequence truth is keyed by `case_id`, `person_id`, and `record_id`. Its
 `call_status` is one of `called_alternate`, `called_reference`,

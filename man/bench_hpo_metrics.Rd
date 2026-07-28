@@ -9,9 +9,11 @@ bench_hpo_metrics(documents, truth, extracted, extracted_documents = documents)
 \arguments{
 \item{documents}{Source documents for \code{truth}.}
 
-\item{truth}{Canonical \code{ducksemantics} HPO observations.}
+\item{truth}{Person-grain HPO observations containing case, person, and
+observation identity around the canonical \code{ducksemantics} columns.}
 
-\item{extracted}{Canonical HPO observations emitted by a system under test.}
+\item{extracted}{Person-grain HPO observations emitted by a system under
+test.}
 
 \item{extracted_documents}{Source documents for \code{extracted}; defaults to
 \code{documents} when extraction is over the same clinical notes.}

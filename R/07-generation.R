@@ -90,13 +90,38 @@ bench_validate_documents <- function(documents) {
 bench_validate_hpo_observations <- function(documents, observations) {
   bench_validate_documents(documents)
   contract <- ducksemantics::ducksemantics_hpo_observation_contract()
-  if (!is.data.frame(observations) || !identical(names(observations), contract)) {
+  wrapper <- c("case_id", "person_id", "observation_id")
+  if (!is.data.frame(observations) ||
+      !identical(names(observations), c(wrapper, contract))) {
     stop(
-      "hpo observations must use the canonical ducksemantics observation columns",
+      "hpo observations must contain case/person/observation identity around ",
+      "the unchanged ducksemantics observation columns",
       call. = FALSE
     )
   }
-  ducksemantics::ducksemantics_hpo_observations(documents, observations)
+  for (column in wrapper) {
+    bench_nonempty_text(
+      observations[[column]], paste0("hpo_observations$", column)
+    )
+  }
+  bench_unique_key(
+    observations, c("case_id", "observation_id"), "hpo_observations"
+  )
+  document_identity <- documents[c("case_id", "document_id")]
+  observed_documents <- observations[c("case_id", "document_id")]
+  if (nrow(merge(
+    observed_documents, document_identity,
+    by = c("case_id", "document_id")
+  )) != nrow(observed_documents)) {
+    stop(
+      "every HPO observation must refer to a document in the same case",
+      call. = FALSE
+    )
+  }
+  ducksemantics::ducksemantics_hpo_observations(
+    documents,
+    observations[contract]
+  )
   invisible(observations)
 }
 
@@ -208,7 +233,7 @@ bench_description_realization <- function(provider, presentation) {
 }
 
 bench_hpo_observations_from_text <- function(
-    document_id, source_text, spans, plan, provider_id) {
+    case_id, person_id, document_id, source_text, spans, plan, provider_id) {
   key <- c("hpo_id", "context_status")
   if (nrow(merge(plan[key], spans[key], by = key)) != nrow(plan) ||
       nrow(merge(plan[key], spans[key], by = key)) != nrow(spans)) {
@@ -218,6 +243,9 @@ bench_hpo_observations_from_text <- function(
   spans <- spans[match(bench_relation_key(plan, key), bench_relation_key(spans, key)), , drop = FALSE]
   if (!nrow(spans)) {
     return(data.frame(
+      case_id = character(),
+      person_id = character(),
+      observation_id = character(),
       document_id = character(),
       hpo_id = character(),
       start_offset = integer(),
@@ -233,6 +261,9 @@ bench_hpo_observations_from_text <- function(
     ))
   }
   data.frame(
+    case_id = rep(case_id, nrow(spans)),
+    person_id = rep(person_id, nrow(spans)),
+    observation_id = paste0(case_id, ":hpo:", seq_len(nrow(spans))),
     document_id = rep(document_id, nrow(spans)),
     hpo_id = spans$hpo_id,
     start_offset = as.integer(spans$start_offset),
@@ -420,6 +451,15 @@ bench_validate_micro_cohort <- function(bundle) {
                  by = c("case_id", "person_id"))) != nrow(declared_people)) {
     stop("sequence truth must identify every declared person exactly", call. = FALSE)
   }
+  hpo_people <- unique(
+    bundle$evaluator_truth$hpo_observations[c("case_id", "person_id")]
+  )
+  if (nrow(merge(
+    hpo_people, declared_people, by = c("case_id", "person_id")
+  )) != nrow(hpo_people)) {
+    stop("HPO truth must refer to a declared person in the same case",
+         call. = FALSE)
+  }
   invisible(bundle)
 }
 
@@ -559,8 +599,12 @@ bench_generate_micro_cohort <- function(
       source_text = realization$source_text,
       stringsAsFactors = FALSE
     )
+    proband_id <- persons$person_id[
+      persons$case_id == case_id & persons$is_proband
+    ]
     observations[[i]] <- bench_hpo_observations_from_text(
-      document_id, realization$source_text, realization$spans, plan, provider_id
+      case_id, proband_id, document_id, realization$source_text,
+      realization$spans, plan, provider_id
     )
   }
   documents <- do.call(rbind, documents)

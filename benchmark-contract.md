@@ -51,22 +51,28 @@ case's `persons$vcf_sample_id` values; every case has exactly one proband.
 those parents in `persons`.
 
 `documents` has `case_id`, unique `document_id`, and exact nonempty
-`source_text`, with one document for every case, including CNV. `hpo_observations`
-uses exactly
-`ducksemantics_hpo_observation_contract()`:
+`source_text`, with one document for every case, including CNV.
+`hpo_observations` adds the evaluator wrapper
+
+```
+case_id, person_id, observation_id
+```
+
+around exactly `ducksemantics_hpo_observation_contract()`:
 
 ```
 document_id, hpo_id, start_offset, end_offset, source_text,
 context_status, method, provider_id, provider_version, confidence, status
 ```
 
-`ducksemantics_hpo_observations()` validates document identity, exact quoted
+Every observation refers to a document in the same case and to a declared
+person. `ducksemantics_hpo_observations()` validates document identity, exact quoted
 `source_text`, zero-based half-open bounds, accepted status, and canonical
 context vocabulary. Negated findings use `absent/negated`, not `negated`.
 
 `bench_hpo_metrics(documents, truth, extracted, extracted_documents)` validates
 both observation relations against their source documents and scores term,
-context, and exact span separately. A zero denominator is reported with count
+context, and exact span separately at case/person grain. A zero denominator is reported with count
 zero and `NA` rates; it is unavailable, not a perfect score. When precision
 and recall both have present denominators and equal zero performance, F1 is
 zero rather than `NA`.

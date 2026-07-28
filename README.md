@@ -88,12 +88,14 @@ provider <- function(presentation) {
 ```
 
 Each source document has `case_id`, `document_id`, and `source_text`;
-there is one document and one proband for every case. The generated
-observations use the unchanged canonical `ducksemantics` HPO relation:
-`document_id`, `hpo_id`, exact source span/text, `context_status`,
-method, provider provenance, confidence, and accepted status. Case
-linkage is through `documents`, not extra semantic columns. Negated
-findings are `absent/negated`.
+there is one document and one proband for every case. Generated
+evaluator observations wrap `case_id`, `person_id`, and `observation_id`
+around the unchanged canonical `ducksemantics` fields: `document_id`,
+`hpo_id`, exact source span/text, `context_status`, method, provider
+provenance, confidence, and accepted status. The wrapper prevents a
+relative’s finding from being scored as the proband’s; document
+text/span semantics remain owned by ducksemantics. Negated findings are
+`absent/negated`.
 
 ``` r
 bench_hpo_metrics(

@@ -29,8 +29,10 @@ bench_f1 <- function(precision, recall) {
 #' perfect scores.
 #'
 #' @param documents Source documents for `truth`.
-#' @param truth Canonical `ducksemantics` HPO observations.
-#' @param extracted Canonical HPO observations emitted by a system under test.
+#' @param truth Person-grain HPO observations containing case, person, and
+#'   observation identity around the canonical `ducksemantics` columns.
+#' @param extracted Person-grain HPO observations emitted by a system under
+#'   test.
 #' @param extracted_documents Source documents for `extracted`; defaults to
 #'   `documents` when extraction is over the same clinical notes.
 #' @return One-row data frame of term, context, and exact-span counts and
@@ -40,13 +42,20 @@ bench_hpo_metrics <- function(
     documents, truth, extracted, extracted_documents = documents) {
   bench_validate_hpo_observations(documents, truth)
   bench_validate_hpo_observations(extracted_documents, extracted)
-  term <- bench_set_counts(truth, extracted, c("document_id", "hpo_id"))
+  term <- bench_set_counts(
+    truth, extracted,
+    c("case_id", "person_id", "document_id", "hpo_id")
+  )
   context <- bench_set_counts(
-    truth, extracted, c("document_id", "hpo_id", "context_status")
+    truth, extracted,
+    c("case_id", "person_id", "document_id", "hpo_id", "context_status")
   )
   span <- bench_set_counts(
     truth, extracted,
-    c("document_id", "hpo_id", "start_offset", "end_offset", "source_text", "context_status")
+    c(
+      "case_id", "person_id", "document_id", "hpo_id", "start_offset",
+      "end_offset", "source_text", "context_status"
+    )
   )
   data.frame(
     term_truth_count = term$truth_count,

@@ -1,5 +1,11 @@
 # VariantStoryBench 0.1.0.9000
 
+- Wrapped the unchanged canonical `ducksemantics` HPO fields with explicit
+  `case_id`, `person_id`, and `observation_id` evaluator identity. Validation
+  now rejects document/case mismatch and undeclared people, and extraction
+  metrics include case/person grain so moving a relative's phenotype to the
+  proband cannot score as an exact match.
+
 - Removed the Bench-owned GQ quality policy and the unused sequence,
   inheritance, CNV, and reanalysis recovery metrics. Sealed sequence,
   inheritance, and CNV truth relations remain available for future scientific

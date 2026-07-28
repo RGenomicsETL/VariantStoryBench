@@ -111,11 +111,22 @@ expect_equal(sort(unique(evaluator_truth$hpo_observations$context_status)), c(
 ))
 expect_equal(
   names(evaluator_truth$hpo_observations),
-  ducksemantics::ducksemantics_hpo_observation_contract()
+  c(
+    "case_id", "person_id", "observation_id",
+    ducksemantics::ducksemantics_hpo_observation_contract()
+  )
 )
-expect_false(any(c("case_id", "person_id") %in% names(
-  evaluator_truth$hpo_observations
-)))
+expect_equal(
+  evaluator_truth$hpo_observations$case_id,
+  rep(c("micro-singleton", "micro-trio"), each = 2L)
+)
+expect_equal(
+  evaluator_truth$hpo_observations$person_id,
+  rep(c("MICRO_SINGLETON", "MICRO_PROBAND"), each = 2L)
+)
+expect_equal(anyDuplicated(
+  evaluator_truth$hpo_observations[c("case_id", "observation_id")]
+), 0L)
 expect_equal(
   evaluator_truth$documents$case_id[
     match(evaluator_truth$hpo_observations$document_id,
@@ -193,6 +204,22 @@ expect_equal(hpo$span_truth_count, 4L)
 expect_equal(hpo$term_recall, 1)
 expect_equal(hpo$context_recall, 1)
 expect_equal(hpo$span_recall, 1)
+
+transferred_hpo <- evaluator_truth$hpo_observations
+transferred_hpo$person_id[[1L]] <- "wrong-person"
+transferred <- bench_hpo_metrics(
+  evaluator_truth$documents, evaluator_truth$hpo_observations,
+  transferred_hpo
+)
+expect_equal(transferred$term_true_positive_count, 3L)
+expect_equal(transferred$term_precision, 0.75)
+expect_equal(transferred$term_recall, 0.75)
+leaky_bundle <- bundle
+leaky_bundle$evaluator_truth$hpo_observations$person_id[[1L]] <- "wrong-person"
+expect_error(
+  VariantStoryBench:::bench_validate_micro_cohort(leaky_bundle),
+  "declared person"
+)
 
 bad_source <- evaluator_truth$hpo_observations
 bad_source$source_text[[1L]] <- "wrong"
