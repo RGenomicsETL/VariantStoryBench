@@ -129,8 +129,9 @@ intervals.
 A frequency-capable adapter may additionally emit the narrow typed
 case-frequency relation validated by `bench_validate_frequency_observations()`.
 The validator keeps absent rows, unlocalized shards, provider conflicts,
-filtering, missing values, AC=0/AN>0, and AN=0 distinct; it checks AF arithmetic
-and never assigns PM2. The broad provider pack is not a benchmark output.
+filtering, missing values, AC=0/AN>0, and AN=0 distinct; it requires lowercase
+16-character hexadecimal VariantKey text, checks AC/AN/AF and FAF bounds and
+missingness, and never assigns PM2. The broad provider pack is not a benchmark output.
 
 ## Sealed scientific truth relations
 
@@ -138,16 +139,18 @@ The evaluator-only bundle retains source/canonical `allele_truth`, person-grain
 `genotype_truth`, explicit `causal_allele_truth`, `inheritance_truth`, and
 `cnv_truth` as sealed relations.
 `bench_allele_transport_metrics()` compares source and canonical GRCh38
-geometry by record/ALT ordinal. `bench_genotype_transport_metrics()` compares
-GT, GQ, DP, ploidy, phase, and ALT-relative call state without applying a GQ
-threshold. `causal_allele_truth` separately marks source `reference` versus one
+geometry plus source admission by record/ALT ordinal.
+`bench_genotype_transport_metrics()` compares GT, GQ, DP, ALT-relative copy
+count, ploidy, phase/phase set, and ALT-relative call state without applying a
+GQ threshold. `causal_allele_truth` separately marks source `reference` versus one
 exact `alternate` ordinal: the singleton causal answer intentionally targets
 REF, while the confirmed-negative case has a called ALT and no causal row.
 Thus REF/ALT and call state never stand in for pathogenic/benign orientation.
 These truth relations are not sent to an engine or text provider.
 
 The symbolic deletion is a real `cnv` case with GRCh38, type, BED interval,
-and `XCNV` authority. VCF `POS=549997` is the one-based padding/base-before-event
+source `unsupported_symbolic` admission, and separate `routed`/`XCNV` routing
+truth. VCF `POS=549997` is the one-based padding/base-before-event
 coordinate, while `END=559997` is the inclusive last affected base. Excluding
 the padding base gives the affected BED half-open interval `[549997, 559997)`:
 use VCF `POS` as the BED start and `END` as the exclusive end. This is a

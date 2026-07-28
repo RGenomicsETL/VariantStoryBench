@@ -33,10 +33,10 @@ validated core result relations.
 | `runs` | `run_id` | Declares engine/version/source/profile/cutoff/resources and run status. |
 | `evaluations` | `run_id`, `case_id`, `target_type` | Contains exactly one row for every run × case unit; status is completed, failed, unsupported, or skipped. |
 | `candidates` | run/case/target/candidate | Candidates belong only to completed evaluations. Ranks are unique and contiguous from 1 per emitted case unit; emitters break score ties by `candidate_id`. |
-| `allele_observations` | case/source record/ALT ordinal | Preserves source and canonical GRCh38 geometry, sequence class, and admission status. |
-| `genotype_observations` | case/person/source record/ALT ordinal | Preserves GT, GQ, DP, ploidy, phase, and explicit ALT-relative call state without a quality threshold or pathogenicity inference. |
+| `allele_observations` | case/source record/ALT ordinal | Preserves source and canonical GRCh38 geometry, sequence class, and source admission status. |
+| `genotype_observations` | case/person/source record/ALT ordinal | Preserves GT, GQ, DP, ALT-relative copy count, ploidy, phase/phase set, and explicit ALT-relative call state without a quality threshold or pathogenicity inference. |
 | `causal_allele_truth` | causal variant answer/source record/allele role | Evaluator-only mapping from generic causal answer to source `reference` or one exact `alternate` ordinal. REF is permitted to be the pathogenic allele. |
-| `frequency_observations` | case/allele/provider row | Keeps exact case identity, shard localization, match/filter/observation state, provider-row multiplicity, global and group-maximum AC/AN/AF, and FAF95/FAF99. Zero-row matches have one explicit placeholder and no fabricated provider identity. |
+| `frequency_observations` | case/allele/provider row | Keeps exact case identity with lowercase 16-character hexadecimal VariantKey text, shard localization, match/filter/observation state, provider-row multiplicity, bounded global and group-maximum AC/AN/AF, and FAF95/FAF99. Zero-row matches have one explicit placeholder and no fabricated provider identity. |
 | `judgments` / `judgment_sources` | claim key / source key | Directional judgments cite matching source stance. Present spans are zero-based, half-open, and strictly nonempty. |
 
 `bench_rank_metrics()` includes failed, skipped, and unsupported known-causal
@@ -90,10 +90,10 @@ zero rather than `NA`.
 | `generations` | Causal singleton, trio, symbolic-CNV, and confirmed-negative GRCh38 VCFs written through `vcfppR`. |
 | `persons` | Both singletons, all trio members, and the CNV proband, with exact VCF sample mappings. |
 | `relationships` | Latent trio presentation with two `biological_parent` edges. |
-| `allele_truth` | One row per case/source-record/ALT ordinal, retaining source and expected canonical geometry, sequence class, and admission status. |
-| `genotype_truth` | One row for every person and ALT row, retaining exact GT/GQ/DP, ploidy, phase, and ALT-relative call status. |
+| `allele_truth` | One row per case/source-record/ALT ordinal, retaining source and expected canonical geometry, sequence class, and source admission status. |
+| `genotype_truth` | One row for every person and ALT row, retaining exact GT/GQ/DP, ALT-relative copy count, ploidy, phase/phase set, and ALT-relative call status. |
 | `causal_allele_truth` | Variant causal answers mapped to source record plus `reference` or exact `alternate` ordinal; the singleton causal truth intentionally targets REF. |
-| `cnv_truth` | `case_id`, assembly, contig, CNV type, BED start/end, and authority. |
+| `cnv_truth` | `case_id`, assembly, contig, CNV type, BED start/end, routing status, and routing authority. |
 | `capabilities` | Explicit `supported` or `unsupported` status and detail. |
 
 The generated VCFs use Ensembl GRCh38 primary-assembly contig names and these
@@ -120,7 +120,7 @@ padding base when converting to the BED half-open affected interval:
 `[549997, 559997)` (use VCF `POS` as the BED start and `END` as the exclusive
 end). The affected interval is exactly `559997 - 549997 = 10,000` bp. The VCF
 remains unchanged. The sealed CNV truth retains assembly, type, contig,
-exact interval, and authority for future scientific evaluation; no current
+exact interval, routing status, and routing authority for future scientific evaluation; no current
 public metric interprets it and it never scores opaque CNV IDs.
 
 The cohort has a causal singleton whose asserted pathogenic allele is source
@@ -139,8 +139,9 @@ The sealed `allele_truth` relation is keyed by case/source-record/ALT ordinal;
 `genotype_truth` adds person grain. `causal_allele_truth` is a separate mapping
 because assembly REF/ALT orientation does not imply pathogenicity or benignity.
 `bench_allele_transport_metrics()` compares
-source and canonical geometry, class, and admission status.
-`bench_genotype_transport_metrics()` compares GT/GQ/DP, ploidy, phase, and call
+source and canonical geometry, class, and source admission status.
+`bench_genotype_transport_metrics()` compares GT/GQ/DP, ALT-relative copy count,
+ploidy, phase/phase set, and call
 state after rejecting internally inconsistent GT summaries. Missing or
 unexpected identity rows remain explicit counts. The package applies no GQ
 threshold. Inheritance and CNV relations retain their declared structural

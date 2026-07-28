@@ -213,7 +213,7 @@ bench_validate_allele_truth <- function(alleles, name = "allele_truth") {
     "case_id", "record_ordinal", "alt_ordinal", "assembly", "source_contig",
     "source_position", "source_reference", "source_alternate",
     "canonical_contig", "canonical_position", "canonical_reference",
-    "canonical_alternate", "sequence_class", "admission_status"
+    "canonical_alternate", "sequence_class", "source_admission_status"
   )
   if (!identical(names(alleles), columns)) {
     stop(name, " must have exactly columns: ", paste(columns, collapse = ", "),
@@ -222,7 +222,7 @@ bench_validate_allele_truth <- function(alleles, name = "allele_truth") {
   for (column in c(
     "case_id", "assembly", "source_contig", "source_reference",
     "source_alternate", "canonical_contig", "canonical_reference",
-    "canonical_alternate", "sequence_class", "admission_status"
+    "canonical_alternate", "sequence_class", "source_admission_status"
   )) {
     bench_nonempty_text(alleles[[column]], paste0(name, "$", column))
   }
@@ -239,12 +239,19 @@ bench_validate_allele_truth <- function(alleles, name = "allele_truth") {
     paste0(name, "$sequence_class")
   )
   bench_choice_values(
-    alleles$admission_status, c("supported", "routed_symbolic_cnv"),
-    paste0(name, "$admission_status")
+    alleles$source_admission_status,
+    c(
+      "supported", "unsupported_multiallelic", "unsupported_symbolic",
+      "unsupported_breakend", "unsupported_non_literal"
+    ),
+    paste0(name, "$source_admission_status")
   )
   if (any((alleles$sequence_class == "CNV") !=
-          (alleles$admission_status == "routed_symbolic_cnv"))) {
-    stop(name, " CNV class and symbolic routing status conflict", call. = FALSE)
+          (alleles$source_admission_status == "unsupported_symbolic"))) {
+    stop(
+      name, " CNV class and source symbolic admission status conflict",
+      call. = FALSE
+    )
   }
   bench_unique_key(alleles, c("case_id", "record_ordinal", "alt_ordinal"), name)
   invisible(alleles)
@@ -271,6 +278,16 @@ bench_gt_state <- function(gt, alt_ordinal) {
     "other_alternate"
   }
   list(
+    alt_count = if (length(called) == length(alleles)) {
+      sum(as.integer(called) == alt_ordinal)
+    } else {
+      NA_integer_
+    },
+    maximum_allele_index = if (length(called)) {
+      max(as.integer(called))
+    } else {
+      0L
+    },
     ploidy = length(alleles),
     phased = grepl("|", gt, fixed = TRUE),
     call_status = status
@@ -281,7 +298,7 @@ bench_validate_genotype_truth <- function(genotypes, name = "genotype_truth") {
   if (!is.data.frame(genotypes)) stop(name, " must be a data frame", call. = FALSE)
   columns <- c(
     "case_id", "person_id", "record_ordinal", "alt_ordinal", "gt", "gq",
-    "dp", "ploidy", "phased", "call_status"
+    "dp", "alt_count", "ploidy", "phased", "phase_set", "call_status"
   )
   if (!identical(names(genotypes), columns)) {
     stop(name, " must have exactly columns: ", paste(columns, collapse = ", "),
@@ -302,8 +319,27 @@ bench_validate_genotype_truth <- function(genotypes, name = "genotype_truth") {
       stop(name, "$", column, " must contain integer values", call. = FALSE)
     }
   }
+  if (!is.numeric(genotypes$alt_count) || any(
+    !is.na(genotypes$alt_count) &
+      (genotypes$alt_count < 0 |
+       genotypes$alt_count != floor(genotypes$alt_count) |
+       genotypes$alt_count > genotypes$ploidy)
+  )) {
+    stop(
+      name, "$alt_count must be missing or a whole number from zero to ploidy",
+      call. = FALSE
+    )
+  }
   if (!is.logical(genotypes$phased) || anyNA(genotypes$phased)) {
     stop(name, "$phased must contain non-missing logical values", call. = FALSE)
+  }
+  if (!is.character(genotypes$phase_set) ||
+      any(!is.na(genotypes$phase_set) & !nzchar(genotypes$phase_set)) ||
+      any(!genotypes$phased & !is.na(genotypes$phase_set))) {
+    stop(
+      name, "$phase_set must be missing or non-empty text on a phased call",
+      call. = FALSE
+    )
   }
   bench_choice_values(
     genotypes$call_status,
@@ -312,13 +348,39 @@ bench_validate_genotype_truth <- function(genotypes, name = "genotype_truth") {
     paste0(name, "$call_status")
   )
   states <- Map(bench_gt_state, genotypes$gt, genotypes$alt_ordinal)
+  record_key <- interaction(
+    genotypes$case_id, genotypes$record_ordinal,
+    drop = TRUE, lex.order = TRUE
+  )
+  record_groups <- split(seq_len(nrow(genotypes)), record_key)
+  declared_alt_count <- integer(nrow(genotypes))
+  for (indices in record_groups) {
+    ordinals <- sort(unique(as.integer(genotypes$alt_ordinal[indices])))
+    if (!identical(ordinals, seq_len(max(ordinals)))) {
+      stop(name, " ALT ordinals must be contiguous within each source record",
+           call. = FALSE)
+    }
+    declared_alt_count[indices] <- max(ordinals)
+  }
+  maximum_allele_index <- unname(vapply(
+    states, `[[`, integer(1L), "maximum_allele_index"
+  ))
+  if (any(maximum_allele_index > declared_alt_count)) {
+    stop(name, " GT allele index exceeds the declared source-record ALT count",
+         call. = FALSE)
+  }
+  derived_alt_count <- unname(vapply(states, `[[`, integer(1L), "alt_count"))
   derived_ploidy <- unname(vapply(states, `[[`, integer(1L), "ploidy"))
   derived_phased <- unname(vapply(states, `[[`, logical(1L), "phased"))
   derived_status <- unname(vapply(states, `[[`, character(1L), "call_status"))
-  if (!identical(as.integer(genotypes$ploidy), derived_ploidy) ||
+  if (!identical(as.integer(genotypes$alt_count), derived_alt_count) ||
+      !identical(as.integer(genotypes$ploidy), derived_ploidy) ||
       !identical(genotypes$phased, derived_phased) ||
       !identical(genotypes$call_status, derived_status)) {
-    stop(name, " GT conflicts with ploidy, phase, or call status", call. = FALSE)
+    stop(
+      name, " GT conflicts with ALT count, ploidy, phase, or call status",
+      call. = FALSE
+    )
   }
   bench_unique_key(
     genotypes,
@@ -327,20 +389,47 @@ bench_validate_genotype_truth <- function(genotypes, name = "genotype_truth") {
   invisible(genotypes)
 }
 
-bench_validate_cnv_authority <- function(cnv, name = "cnv") {
+bench_validate_cnv_truth <- function(cnv, name = "cnv") {
   if (!is.data.frame(cnv)) stop(name, " must be a data frame", call. = FALSE)
-  columns <- c("case_id", "assembly", "contig", "cnv_type", "start", "end", "authority_id")
-  bench_required_columns(cnv, columns)
-  for (column in c("case_id", "assembly", "contig", "cnv_type", "authority_id")) {
+  columns <- c(
+    "case_id", "assembly", "contig", "cnv_type", "start", "end",
+    "routing_status", "routing_authority"
+  )
+  if (!identical(names(cnv), columns)) {
+    stop(name, " must have exactly columns: ", paste(columns, collapse = ", "),
+         call. = FALSE)
+  }
+  for (column in c("case_id", "assembly", "contig", "cnv_type")) {
     bench_nonempty_text(cnv[[column]], paste0(name, "$", column))
   }
-  bench_choice_values(cnv$cnv_type, c("DEL", "DUP", "CNV"), paste0(name, "$cnv_type"))
+  bench_choice_values(
+    cnv$cnv_type, c("DEL", "DUP", "CNV"), paste0(name, "$cnv_type")
+  )
+  bench_choice_values(
+    cnv$routing_status, c("routed", "unsupported"),
+    paste0(name, "$routing_status")
+  )
+  if (!is.character(cnv$routing_authority) ||
+      any(cnv$routing_status == "routed" &
+          (is.na(cnv$routing_authority) | !nzchar(cnv$routing_authority))) ||
+      any(cnv$routing_status == "unsupported" &
+          !is.na(cnv$routing_authority))) {
+    stop(
+      name, " routed rows require an authority and unsupported rows require none",
+      call. = FALSE
+    )
+  }
   bench_integer_values(cnv$start, paste0(name, "$start"), minimum = 0L)
   bench_integer_values(cnv$end, paste0(name, "$end"), minimum = 1L)
   if (any(cnv$end <= cnv$start)) {
-    stop(name, "$end must be greater than start for BED half-open intervals", call. = FALSE)
+    stop(
+      name, "$end must be greater than start for BED half-open intervals",
+      call. = FALSE
+    )
   }
-  bench_unique_key(cnv, c("case_id", "assembly", "contig", "cnv_type", "start", "end"), name)
+  bench_unique_key(
+    cnv, c("case_id", "assembly", "contig", "cnv_type", "start", "end"), name
+  )
   invisible(cnv)
 }
 
@@ -602,7 +691,7 @@ bench_validate_evaluator_truth <- function(evaluator_truth) {
     evaluator_truth$truth,
     evaluator_truth$allele_truth
   )
-  bench_validate_cnv_authority(evaluator_truth$cnv_truth, "cnv_truth")
+  bench_validate_cnv_truth(evaluator_truth$cnv_truth, "cnv_truth")
   bench_validate_capabilities(evaluator_truth$capabilities)
   invisible(evaluator_truth)
 }
@@ -642,6 +731,16 @@ bench_validate_micro_cohort <- function(bundle) {
         nrow(expected_genotypes)) {
     stop("genotype truth must cover every person and admitted allele exactly",
          call. = FALSE)
+  }
+  cnv_source_cases <- unique(bundle$evaluator_truth$allele_truth$case_id[
+    bundle$evaluator_truth$allele_truth$sequence_class == "CNV"
+  ])
+  cnv_routing_cases <- unique(bundle$evaluator_truth$cnv_truth$case_id)
+  if (!identical(sort(cnv_source_cases), sort(cnv_routing_cases))) {
+    stop(
+      "CNV source admission and routing truth must cover the same cases",
+      call. = FALSE
+    )
   }
   hpo_people <- unique(
     bundle$evaluator_truth$hpo_observations[c("case_id", "person_id")]
@@ -854,7 +953,9 @@ bench_generate_micro_cohort <- function(
     sequence_class = c(
       "SNV", "indel", "indel", "SNV", "SNV", "SNV", "CNV", "SNV"
     ),
-    admission_status = c(rep("supported", 6L), "routed_symbolic_cnv", "supported"),
+    source_admission_status = c(
+      rep("supported", 6L), "unsupported_symbolic", "supported"
+    ),
     stringsAsFactors = FALSE
   )
   genotype_truth <- data.frame(
@@ -875,8 +976,11 @@ bench_generate_micro_cohort <- function(
     ),
     gq = c(99, 78, 99, 99, 99, 72, 68, 70, 18, NA, NA, 8, 7, 8, 80, 91),
     dp = c(36, 31, 42, 39, 40, 30, 28, 29, 5, NA, NA, 3, 3, 3, 22, 34),
+    alt_count = c(1L, 1L, 1L, 0L, 0L, 1L, 0L, 0L, 1L, NA, NA,
+                  1L, 0L, 0L, 1L, 1L),
     ploidy = rep(2L, 16L),
     phased = c(FALSE, TRUE, rep(FALSE, 14L)),
+    phase_set = rep(NA_character_, 16L),
     call_status = c(
       "called_alternate", "called_alternate",
       "called_alternate", "called_reference", "called_reference",
@@ -903,7 +1007,8 @@ bench_generate_micro_cohort <- function(
     cnv_type = "DEL",
     start = 549997L,
     end = 559997L,
-    authority_id = "XCNV",
+    routing_status = "routed",
+    routing_authority = "XCNV",
     stringsAsFactors = FALSE
   )
   capabilities <- data.frame(

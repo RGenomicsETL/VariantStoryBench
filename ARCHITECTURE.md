@@ -40,8 +40,9 @@ until a concrete adapter accepts the complete `engine_input` bundle and emits
 validated result relations. The public
 `bench_validate_frequency_observations()` contract can validate an adapter's
 case-frequency output without loading VariantStory or rebuilding its provider
-fixture. It keeps provider-row multiplicity and match/filter/observation state
-explicit; it is not a PM2 evaluator.
+fixture. It requires lowercase 16-character hexadecimal VariantKey text, exact
+AC/AN/AF and FAF bounds/missingness, provider-row multiplicity, and explicit
+match/filter/observation state; it is not a PM2 evaluator.
 
 ## Current synthetic scope
 
@@ -51,8 +52,8 @@ confirmed-negative singleton VCF. Relationships use
 `case_id`, `person_id`, `relative_id`, and `relationship`; both trio edges are
 `biological_parent`, with parent sex carried by `persons`. The deletion is a
 real `cnv` case with a mapped CNV proband, GRCh38, type, BED half-open interval,
-and `XCNV` authority. It is a transport fixture, not general CNV/SV
-simulation.
+source `unsupported_symbolic` admission, and independent `routed`/`XCNV`
+routing truth. It is a transport fixture, not general CNV/SV simulation.
 
 The generated VCFs use Ensembl GRCh38 primary-assembly contig names and these
 verified reference alleles:
@@ -85,10 +86,11 @@ canonical `ducksemantics` fields. The text provider receives no causal truth;
 metrics retain person grain so findings cannot move silently between relatives.
 
 `allele_truth` is keyed by case/source-record/ALT ordinal and preserves exact
-source and expected canonical GRCh38 geometry, sequence class, and admission
-status. The `TGC>TC` fixture is canonically suffix-minimized to `TG>T` without
-requiring a reference lookup. `genotype_truth` adds person grain and preserves
-exact GT, GQ, DP, ploidy, phase, and call state; its call state is one of
+source and expected canonical GRCh38 geometry, sequence class, and source
+admission status. The `TGC>TC` fixture is canonically suffix-minimized to `TG>T`
+without requiring a reference lookup. `genotype_truth` adds person grain and
+preserves exact GT, GQ, DP, ALT-relative copy count, ploidy, phase, phase set,
+and call state; its call state is one of
 `called_alternate`, `called_reference`, `partial_no_call`, `no_call`, or
 `other_alternate`. These are call states relative to an ALT ordinal, not
 clinical-significance labels. `causal_allele_truth` separately identifies

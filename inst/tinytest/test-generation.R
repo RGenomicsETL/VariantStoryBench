@@ -107,11 +107,11 @@ expect_equal(names(evaluator_truth$allele_truth), c(
   "case_id", "record_ordinal", "alt_ordinal", "assembly", "source_contig",
   "source_position", "source_reference", "source_alternate",
   "canonical_contig", "canonical_position", "canonical_reference",
-  "canonical_alternate", "sequence_class", "admission_status"
+  "canonical_alternate", "sequence_class", "source_admission_status"
 ))
 expect_equal(names(evaluator_truth$genotype_truth), c(
   "case_id", "person_id", "record_ordinal", "alt_ordinal", "gt", "gq",
-  "dp", "ploidy", "phased", "call_status"
+  "dp", "alt_count", "ploidy", "phased", "phase_set", "call_status"
 ))
 trimmed <- evaluator_truth$allele_truth[
   evaluator_truth$allele_truth$case_id == "micro-singleton" &
@@ -128,9 +128,25 @@ expect_equal(
   ],
   TRUE
 )
+expect_equal(
+  evaluator_truth$genotype_truth$alt_count[
+    evaluator_truth$genotype_truth$case_id == "micro-trio" &
+      evaluator_truth$genotype_truth$record_ordinal == 3L
+  ],
+  c(1L, NA_integer_, NA_integer_)
+)
+expect_true(all(is.na(evaluator_truth$genotype_truth$phase_set)))
+expect_equal(
+  evaluator_truth$allele_truth$source_admission_status[
+    evaluator_truth$allele_truth$sequence_class == "CNV"
+  ],
+  "unsupported_symbolic"
+)
 expect_equal(evaluator_truth$cnv_truth$contig, "7")
 expect_equal(evaluator_truth$cnv_truth$start, 549997L)
 expect_equal(evaluator_truth$cnv_truth$end, 559997L)
+expect_equal(evaluator_truth$cnv_truth$routing_status, "routed")
+expect_equal(evaluator_truth$cnv_truth$routing_authority, "XCNV")
 expect_equal(
   evaluator_truth$cnv_truth$end - evaluator_truth$cnv_truth$start,
   10000L
@@ -328,11 +344,56 @@ expect_error(
   ),
   "GT conflicts"
 )
+wrong_alt_count <- evaluator_truth$genotype_truth
+wrong_alt_count$alt_count[[1L]] <- 0L
+expect_error(
+  bench_genotype_transport_metrics(
+    evaluator_truth$genotype_truth, wrong_alt_count
+  ),
+  "ALT count"
+)
+invalid_phase_set <- evaluator_truth$genotype_truth
+invalid_phase_set$phase_set[[1L]] <- "block-1"
+expect_error(
+  bench_genotype_transport_metrics(
+    evaluator_truth$genotype_truth, invalid_phase_set
+  ),
+  "phase_set"
+)
+out_of_range_gt <- evaluator_truth$genotype_truth
+out_of_range_gt$gt[[1L]] <- "0/2"
+expect_error(
+  bench_genotype_transport_metrics(
+    evaluator_truth$genotype_truth, out_of_range_gt
+  ),
+  "exceeds the declared source-record ALT count"
+)
 leaky_allele <- bundle
 leaky_allele$evaluator_truth$allele_truth$alt_ordinal[[1L]] <- 2L
 expect_error(
   VariantStoryBench:::bench_validate_micro_cohort(leaky_allele),
   "cover every person and admitted allele"
+)
+conflated_cnv_admission <- bundle
+conflated_cnv_admission$evaluator_truth$allele_truth$source_admission_status[
+  conflated_cnv_admission$evaluator_truth$allele_truth$sequence_class == "CNV"
+] <- "supported"
+expect_error(
+  VariantStoryBench:::bench_validate_micro_cohort(conflated_cnv_admission),
+  "source symbolic admission"
+)
+missing_cnv_authority <- bundle
+missing_cnv_authority$evaluator_truth$cnv_truth$routing_authority <- NA_character_
+expect_error(
+  VariantStoryBench:::bench_validate_micro_cohort(missing_cnv_authority),
+  "require an authority"
+)
+missing_cnv_route <- bundle
+missing_cnv_route$evaluator_truth$cnv_truth <-
+  missing_cnv_route$evaluator_truth$cnv_truth[FALSE, ]
+expect_error(
+  VariantStoryBench:::bench_validate_micro_cohort(missing_cnv_route),
+  "same cases"
 )
 wrong_reference_role <- bundle
 wrong_reference_role$evaluator_truth$causal_allele_truth$alt_ordinal[[1L]] <- 1L

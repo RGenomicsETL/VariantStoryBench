@@ -39,6 +39,14 @@ bench_validate_frequency_observations <- function(observations) {
     observations$normalization_method, c("caller", "duckhts"),
     "observations$normalization_method"
   )
+  bench_choice_values(
+    observations$case_identity_status,
+    c(
+      "supported", "unsupported_multiallelic", "unsupported_symbolic",
+      "unsupported_breakend", "unsupported_non_literal"
+    ),
+    "observations$case_identity_status"
+  )
   if (any(observations$case_assembly != "GRCh38")) {
     stop("frequency observations must use GRCh38 case identity", call. = FALSE)
   }
@@ -52,6 +60,15 @@ bench_validate_frequency_observations <- function(observations) {
       anyNA(observations$shard_localized) ||
       !is.logical(observations$case_is_hash)) {
     stop("shard_localized and case_is_hash must be logical", call. = FALSE)
+  }
+  if (!is.character(observations$case_variant_key) || any(
+    !is.na(observations$case_variant_key) &
+      !grepl("^[0-9a-f]{16}$", observations$case_variant_key)
+  )) {
+    stop(
+      "case_variant_key must use lowercase 16-character hexadecimal text",
+      call. = FALSE
+    )
   }
   bench_choice_values(
     observations$match_status,
@@ -67,6 +84,14 @@ bench_validate_frequency_observations <- function(observations) {
            is.na(observations$case_is_hash)))) {
     stop("supported case identity requires VariantKey and hash status",
          call. = FALSE)
+  }
+  if (any(!supported &
+          (!is.na(observations$case_variant_key) |
+           !is.na(observations$case_is_hash)))) {
+    stop(
+      "unsupported case identity status must not fabricate VariantKey or hash status",
+      call. = FALSE
+    )
   }
 
   provider_present <- observations$provider_row_count > 0L
@@ -100,6 +125,11 @@ bench_validate_frequency_observations <- function(observations) {
       )
     }
   }
+  if (!is.character(observations$source_filters) || any(
+    !is.na(observations$source_filters) & !nzchar(observations$source_filters)
+  )) {
+    stop("source_filters must be missing or non-empty text", call. = FALSE)
+  }
   provider_identity_columns <- c(
     "provider_id", "provider_release", "provider_source_scope",
     "source_contig", "source_record_ordinal", "source_alt_ordinal",
@@ -108,7 +138,7 @@ bench_validate_frequency_observations <- function(observations) {
   if (any(vapply(
     observations[provider_identity_columns],
     function(column) any(!is.na(column[!provider_present])), logical(1L)
-  ))) {
+  )) || any(!is.na(observations$source_filters[!provider_present]))) {
     stop("zero-row matches must not fabricate provider identity", call. = FALSE)
   }
   provider_value_columns <- c(
@@ -182,6 +212,52 @@ bench_validate_frequency_observations <- function(observations) {
       stop(column, " must contain integer counts", call. = FALSE)
     }
   }
+  for (column in c(
+    "global_af", "maximum_population_af", "filtering_allele_frequency_95",
+    "filtering_allele_frequency_99"
+  )) {
+    values <- observations[[column]]
+    if (any(values[!is.na(values)] > 1)) {
+      stop(column, " must not exceed one", call. = FALSE)
+    }
+  }
+  global_pair_missing <- xor(
+    is.na(observations$global_ac), is.na(observations$global_an)
+  )
+  maximum_pair_missing <- xor(
+    is.na(observations$maximum_population_ac),
+    is.na(observations$maximum_population_an)
+  )
+  if (any(global_pair_missing) || any(maximum_pair_missing)) {
+    stop("AC and AN must be present or missing together", call. = FALSE)
+  }
+  if (any(observations$global_ac > observations$global_an, na.rm = TRUE) ||
+      any(observations$maximum_population_ac >
+          observations$maximum_population_an, na.rm = TRUE)) {
+    stop("allele count must not exceed allele number", call. = FALSE)
+  }
+  maximum_counts_present <- !is.na(observations$maximum_population_ac)
+  if (any(maximum_counts_present !=
+          !is.na(observations$maximum_population))) {
+    stop(
+      "maximum population identity and counts must be present or missing together",
+      call. = FALSE
+    )
+  }
+  bench_nonempty_text(
+    observations$maximum_population[maximum_counts_present],
+    "observations$maximum_population"
+  )
+  if (any(
+    observations$filtering_allele_frequency_95 >
+      observations$filtering_allele_frequency_99,
+    na.rm = TRUE
+  )) {
+    stop(
+      "filtering_allele_frequency_95 must not exceed its 99 bound",
+      call. = FALSE
+    )
+  }
   expected_global_af <- observations$global_ac / observations$global_an
   expected_global_af[is.na(expected_global_af) |
                      observations$global_an == 0] <- NA_real_
@@ -210,7 +286,9 @@ bench_validate_frequency_observations <- function(observations) {
         "observed", "not_observed_at_variant_site", "uncovered_at_variant_site"
       ) & observations$filter_status != "pass", na.rm = TRUE) ||
       any(status %in% "filtered" &
-          observations$filter_status != "filtered", na.rm = TRUE)) {
+          observations$filter_status != "filtered", na.rm = TRUE) ||
+      any(status %in% "missing" &
+          observations$filter_status != "missing", na.rm = TRUE)) {
     stop("provider observation status conflicts with filter status", call. = FALSE)
   }
   if (any(status %in% "observed" &
@@ -220,8 +298,22 @@ bench_validate_frequency_observations <- function(observations) {
           (is.na(observations$global_ac) | observations$global_ac != 0 |
            is.na(observations$global_an) | observations$global_an <= 0)) ||
       any(status %in% "uncovered_at_variant_site" &
-          (is.na(observations$global_an) | observations$global_an != 0))) {
+          (is.na(observations$global_ac) | observations$global_ac != 0 |
+           is.na(observations$global_an) | observations$global_an != 0))) {
     stop("provider observation status conflicts with AC/AN", call. = FALSE)
+  }
+  population_values <- c(
+    "global_ac", "global_an", "global_af", "maximum_population",
+    "maximum_population_ac", "maximum_population_an", "maximum_population_af",
+    "filtering_allele_frequency_95", "filtering_allele_frequency_99"
+  )
+  missing_status <- status == "missing"
+  if (any(vapply(
+    observations[population_values],
+    function(column) any(!is.na(column[missing_status])), logical(1L)
+  ))) {
+    stop("missing provider observations must not fabricate population values",
+         call. = FALSE)
   }
   invisible(observations)
 }

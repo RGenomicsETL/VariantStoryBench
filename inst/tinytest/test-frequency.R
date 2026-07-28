@@ -11,7 +11,9 @@ observations <- data.frame(
   case_position = seq_len(rows) + 100,
   case_reference = rep("A", rows),
   case_alternate = rep("C", rows),
-  case_variant_key = c(1, 2, 2, 3, 4, 5, 6, 7, 8),
+  case_variant_key = sprintf(
+    "%016x", c(1L, 2L, 2L, 3L, 4L, 5L, 6L, 7L, 8L)
+  ),
   case_is_hash = rep(FALSE, rows),
   case_identity_status = rep("supported", rows),
   shard_localized = c(TRUE, TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, TRUE),
@@ -104,5 +106,57 @@ wrong_af$global_af[[1L]] <- 0.2
 expect_error(
   bench_validate_frequency_observations(wrong_af),
   "global_af"
+)
+numeric_variant_key <- observations
+numeric_variant_key$case_variant_key <- seq_len(nrow(numeric_variant_key))
+expect_error(
+  bench_validate_frequency_observations(numeric_variant_key),
+  "hexadecimal text"
+)
+upper_variant_key <- observations
+upper_variant_key$case_variant_key[[1L]] <- "ABCDEF0123456789"
+expect_error(
+  bench_validate_frequency_observations(upper_variant_key),
+  "hexadecimal text"
+)
+ac_exceeds_an <- observations
+ac_exceeds_an$global_ac[[1L]] <- 101
+ac_exceeds_an$global_af[[1L]] <- 1.01
+expect_error(
+  bench_validate_frequency_observations(ac_exceeds_an),
+  "must not exceed one|must not exceed allele number"
+)
+missing_an <- observations
+missing_an$global_an[[1L]] <- NA
+missing_an$global_af[[1L]] <- NA
+expect_error(
+  bench_validate_frequency_observations(missing_an),
+  "present or missing together"
+)
+invalid_faf <- observations
+invalid_faf$filtering_allele_frequency_99[[1L]] <- 1.01
+expect_error(
+  bench_validate_frequency_observations(invalid_faf),
+  "must not exceed one"
+)
+reversed_faf <- observations
+reversed_faf$filtering_allele_frequency_95[[1L]] <- 0.03
+expect_error(
+  bench_validate_frequency_observations(reversed_faf),
+  "must not exceed its 99 bound"
+)
+fabricated_missing <- observations
+fabricated_missing$global_ac[[9L]] <- 0
+fabricated_missing$global_an[[9L]] <- 100
+fabricated_missing$global_af[[9L]] <- 0
+expect_error(
+  bench_validate_frequency_observations(fabricated_missing),
+  "missing provider observations"
+)
+uncovered_ac <- observations
+uncovered_ac$global_ac[[7L]] <- 1
+expect_error(
+  bench_validate_frequency_observations(uncovered_ac),
+  "allele count must not exceed allele number|status conflicts with AC/AN"
 )
 })

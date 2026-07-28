@@ -1,5 +1,14 @@
 # VariantStoryBench 0.1.0.9000
 
+- Separated source admission from CNV routing truth: `allele_truth` now carries
+  `source_admission_status`, while `cnv_truth` carries independent
+  `routing_status` and `routing_authority`. Genotype truth now transports
+  ALT-relative copy count and phase-set identity and validates both against GT.
+  The frequency contract requires lowercase 16-character hexadecimal
+  VariantKey text and rejects out-of-range frequencies, AC greater than AN,
+  partial count/population missingness, reversed FAF bounds, and fabricated
+  values on missing observations.
+
 - Made clinical allele orientation explicit. `causal_allele_truth` now records
   whether each variant causal answer targets the source REF allele or one exact
   ALT ordinal; generic causal IDs include that role. A singleton intentionally
@@ -9,7 +18,8 @@
 - Split coarse sequence truth into exact `allele_truth` and `genotype_truth`.
   The former preserves source and expected canonical GRCh38 geometry by source
   record/ALT ordinal, including one deliberately suffix-minimized indel; the
-  latter preserves GT, GQ, DP, ploidy, phase, and call state per person.
+  latter preserves GT, GQ, DP, ALT-relative copy count, ploidy, phase/phase
+  set, and call state per person.
   `bench_allele_transport_metrics()` and `bench_genotype_transport_metrics()`
   now score engine-neutral output without exposing evaluator truth to engines.
 
