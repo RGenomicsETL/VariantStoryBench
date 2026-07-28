@@ -13,7 +13,7 @@ or a ClinVar/literature/Monarch loader.
 | Boundary | Package responsibility | Outside this package |
 |---|---|---|
 | Engine input | GRCh38 VCF paths/generations, persons with exact VCF sample IDs, case/relationship presentation, and clinical source documents | A concrete engine adapter and its output parser |
-| Evaluator truth | Causal answers, person-grain identity around canonical HPO observations, source/canonical allele truth, exact genotype transport truth, CNV truth, and capability rows | Engine access and clinical evidence policy |
+| Evaluator truth | Causal answers with explicit REF/ALT role, person-grain identity around canonical HPO observations, source/canonical allele truth, exact genotype transport truth, CNV truth, and capability rows | Engine access and clinical evidence policy |
 | Clinical prose | Call a supplied provider with phenotype/context and family presentation only | Prompt/model configuration, including gpt-5.3-spark or Rbebelm |
 | Evaluation | Validate declared relations, including typed case-frequency observations, and calculate explicit-denominator metrics | Clinical adjudication |
 
@@ -29,7 +29,8 @@ or a ClinVar/literature/Monarch loader.
    truth, reference, or oracle relation.
 2. `evaluator_truth`: cases, causal truth, case/person/observation identity
    around canonical `ducksemantics` HPO fields, source/canonical `allele_truth`,
-   person-grain `genotype_truth`, CNV truth, and capabilities. It is not passed to the
+   person-grain `genotype_truth`, explicit `causal_allele_truth`, CNV truth, and
+   capabilities. It is not passed to the
    prose provider or an engine.
 
 `bench_evaluate_micro_cohort()` accepts only `evaluator_truth` and declared
@@ -44,8 +45,9 @@ explicit; it is not a PM2 evaluator.
 
 ## Current synthetic scope
 
-The generator writes a singleton SNV VCF, a trio indel VCF with all three
-sample rows for every record, and a symbolic deletion VCF. Relationships use
+The generator writes a singleton VCF, a trio indel VCF with all three
+sample rows for every record, a symbolic deletion VCF, and a phenotyped
+confirmed-negative singleton VCF. Relationships use
 `case_id`, `person_id`, `relative_id`, and `relationship`; both trio edges are
 `biological_parent`, with parent sex carried by `persons`. The deletion is a
 real `cnv` case with a mapped CNV proband, GRCh38, type, BED half-open interval,
@@ -88,10 +90,14 @@ status. The `TGC>TC` fixture is canonically suffix-minimized to `TG>T` without
 requiring a reference lookup. `genotype_truth` adds person grain and preserves
 exact GT, GQ, DP, ploidy, phase, and call state; its call state is one of
 `called_alternate`, `called_reference`, `partial_no_call`, `no_call`, or
-`other_alternate`. Public transport metrics compare engine-neutral relations
-with sealed truth. GQ/DP are not interpreted as a Bench quality threshold. The
-inheritance and CNV truth relations remain sealed for future scientific
-evaluation.
+`other_alternate`. These are call states relative to an ALT ordinal, not
+clinical-significance labels. `causal_allele_truth` separately identifies
+whether variant causal truth targets source `reference` or one exact
+`alternate` ordinal. The singleton causal answer intentionally targets REF;
+the confirmed-negative case has a called ALT but no causal row. Public
+transport metrics compare engine-neutral relations with sealed truth. GQ/DP
+are not interpreted as a Bench quality threshold. The inheritance and CNV
+truth relations remain sealed for future scientific evaluation.
 
 The `capabilities` relation marks realistic exome/genome simulation, related
 ancestry/admixture, multiplex/consanguinity, general CNV/SV, and novel

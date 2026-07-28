@@ -20,14 +20,14 @@ remotes::install_github("RGenomicsETL/VariantStoryBench")
 
 ## Generate sealed inputs and evaluator truth
 
-The generator writes singleton, trio, and symbolic-CNV VCFs with
-`vcfppR`. The engine-facing bundle contains only VCFs, GRCh38
-generations, persons with exact VCF sample IDs, family presentation, and
-clinical documents. `persons` has `case_id`, `person_id`,
-`vcf_sample_id`, `is_proband`, `sex`, and `affected`; `relationships`
-uses `case_id`, `person_id`, `relative_id`, and `relationship`. The
-evaluator-only bundle contains causal answers and latent observations.
-No reference result or oracle is supplied.
+The generator writes causal singleton, trio, symbolic-CNV, and
+phenotyped confirmed-negative VCFs with `vcfppR`. The engine-facing
+bundle contains only VCFs, GRCh38 generations, persons with exact VCF
+sample IDs, family presentation, and clinical documents. `persons` has
+`case_id`, `person_id`, `vcf_sample_id`, `is_proband`, `sex`, and
+`affected`; `relationships` uses `case_id`, `person_id`, `relative_id`,
+and `relationship`. The evaluator-only bundle contains causal answers
+and latent observations. No reference result or oracle is supplied.
 
 The generated records use Ensembl GRCh38 primary-assembly contig names
 and these verified reference alleles:
@@ -52,12 +52,13 @@ bundle <- bench_generate_micro_cohort(tempfile("variantstorybench-micro-"))
 paste(names(bundle$engine_input), collapse = ", ")
 #> [1] "case_manifest, generations, vcf_paths, persons, relationships, documents"
 paste(names(bundle$evaluator_truth), collapse = ", ")
-#> [1] "cases, truth, documents, hpo_observations, inheritance_truth, allele_truth, genotype_truth, cnv_truth, capabilities"
+#> [1] "cases, truth, documents, hpo_observations, inheritance_truth, allele_truth, genotype_truth, causal_allele_truth, cnv_truth, capabilities"
 bundle$engine_input$generations[, c("generation_id", "assembly", "case_design")]
-#>            generation_id assembly  case_design
-#> 1    micro-singleton-vcf   GRCh38    singleton
-#> 2         micro-trio-vcf   GRCh38         trio
-#> 3 micro-symbolic-cnv-vcf   GRCh38 symbolic_cnv
+#>                  generation_id assembly  case_design
+#> 1          micro-singleton-vcf   GRCh38    singleton
+#> 2               micro-trio-vcf   GRCh38         trio
+#> 3       micro-symbolic-cnv-vcf   GRCh38 symbolic_cnv
+#> 4 micro-confirmed-negative-vcf   GRCh38    singleton
 ```
 
 A text provider receives only a case ID, HPO/context presentation, and
@@ -138,12 +139,17 @@ PM2. The broad provider pack is not a benchmark output.
 ## Sealed scientific truth relations
 
 The evaluator-only bundle retains source/canonical `allele_truth`,
-person-grain `genotype_truth`, `inheritance_truth`, and `cnv_truth` as
-sealed relations. `bench_allele_transport_metrics()` compares source and
-canonical GRCh38 geometry by record/ALT ordinal.
-`bench_genotype_transport_metrics()` compares GT, GQ, DP, ploidy, phase,
-and call state without applying a GQ threshold. These truth relations
-are not sent to an engine or text provider.
+person-grain `genotype_truth`, explicit `causal_allele_truth`,
+`inheritance_truth`, and `cnv_truth` as sealed relations.
+`bench_allele_transport_metrics()` compares source and canonical GRCh38
+geometry by record/ALT ordinal. `bench_genotype_transport_metrics()`
+compares GT, GQ, DP, ploidy, phase, and ALT-relative call state without
+applying a GQ threshold. `causal_allele_truth` separately marks source
+`reference` versus one exact `alternate` ordinal: the singleton causal
+answer intentionally targets REF, while the confirmed-negative case has
+a called ALT and no causal row. Thus REF/ALT and call state never stand
+in for pathogenic/benign orientation. These truth relations are not sent
+to an engine or text provider.
 
 The symbolic deletion is a real `cnv` case with GRCh38, type, BED
 interval, and `XCNV` authority. VCF `POS=549997` is the one-based

@@ -125,6 +125,78 @@ bench_validate_hpo_observations <- function(documents, observations) {
   invisible(observations)
 }
 
+bench_validate_causal_allele_truth <- function(causal_alleles, truth, alleles) {
+  if (!is.data.frame(causal_alleles)) {
+    stop("causal_allele_truth must be a data frame", call. = FALSE)
+  }
+  columns <- c(
+    "case_id", "target_type", "causal_id", "record_ordinal", "allele_role",
+    "alt_ordinal"
+  )
+  if (!identical(names(causal_alleles), columns)) {
+    stop(
+      "causal_allele_truth must have exactly columns: ",
+      paste(columns, collapse = ", "), call. = FALSE
+    )
+  }
+  for (column in c("case_id", "target_type", "causal_id", "allele_role")) {
+    bench_nonempty_text(
+      causal_alleles[[column]], paste0("causal_allele_truth$", column)
+    )
+  }
+  if (any(causal_alleles$target_type != "variant")) {
+    stop("causal allele truth currently supports variant targets", call. = FALSE)
+  }
+  bench_integer_values(
+    causal_alleles$record_ordinal, "causal_allele_truth$record_ordinal", 1L
+  )
+  bench_choice_values(
+    causal_alleles$allele_role, c("reference", "alternate"),
+    "causal_allele_truth$allele_role"
+  )
+  alternate <- causal_alleles$allele_role == "alternate"
+  if (!is.numeric(causal_alleles$alt_ordinal) || any(alternate &
+          (is.na(causal_alleles$alt_ordinal) |
+           causal_alleles$alt_ordinal < 1 |
+           causal_alleles$alt_ordinal != floor(causal_alleles$alt_ordinal))) ||
+      any(!alternate & !is.na(causal_alleles$alt_ordinal))) {
+    stop(
+      "reference causal alleles require no ALT ordinal; alternate causal ",
+      "alleles require a positive ALT ordinal", call. = FALSE
+    )
+  }
+  bench_unique_key(
+    causal_alleles, c("case_id", "target_type", "causal_id"),
+    "causal_allele_truth"
+  )
+  variant_truth <- truth[truth$target_type == "variant",
+                         c("case_id", "target_type", "causal_id"), drop = FALSE]
+  causal_key <- c("case_id", "target_type", "causal_id")
+  if (nrow(causal_alleles) != nrow(variant_truth) ||
+      nrow(merge(causal_alleles[causal_key], variant_truth, by = causal_key)) !=
+        nrow(variant_truth)) {
+    stop("causal allele truth must cover exactly variant causal truth",
+         call. = FALSE)
+  }
+  source_records <- unique(alleles[c("case_id", "record_ordinal")])
+  if (nrow(merge(
+    causal_alleles[!alternate, c("case_id", "record_ordinal"), drop = FALSE],
+    source_records, by = c("case_id", "record_ordinal")
+  )) != sum(!alternate)) {
+    stop("reference causal allele must identify one admitted source record",
+         call. = FALSE)
+  }
+  alternate_key <- c("case_id", "record_ordinal", "alt_ordinal")
+  if (nrow(merge(
+    causal_alleles[alternate, alternate_key, drop = FALSE],
+    alleles[alternate_key], by = alternate_key
+  )) != sum(alternate)) {
+    stop("alternate causal allele must identify one admitted ALT row",
+         call. = FALSE)
+  }
+  invisible(causal_alleles)
+}
+
 bench_validate_inheritance <- function(inheritance, name = "inheritance") {
   if (!is.data.frame(inheritance)) stop(name, " must be a data frame", call. = FALSE)
   bench_required_columns(inheritance, c("case_id", "causal_id", "inheritance"))
@@ -512,7 +584,8 @@ bench_validate_engine_input <- function(engine_input) {
 bench_validate_evaluator_truth <- function(evaluator_truth) {
   required <- c(
     "cases", "truth", "documents", "hpo_observations", "inheritance_truth",
-    "allele_truth", "genotype_truth", "cnv_truth", "capabilities"
+    "allele_truth", "genotype_truth", "causal_allele_truth", "cnv_truth",
+    "capabilities"
   )
   if (!is.list(evaluator_truth) || !identical(sort(names(evaluator_truth)), sort(required))) {
     stop("evaluator_truth must contain the declared evaluator-only relations", call. = FALSE)
@@ -524,6 +597,11 @@ bench_validate_evaluator_truth <- function(evaluator_truth) {
   bench_validate_inheritance(evaluator_truth$inheritance_truth, "inheritance_truth")
   bench_validate_allele_truth(evaluator_truth$allele_truth, "allele_truth")
   bench_validate_genotype_truth(evaluator_truth$genotype_truth, "genotype_truth")
+  bench_validate_causal_allele_truth(
+    evaluator_truth$causal_allele_truth,
+    evaluator_truth$truth,
+    evaluator_truth$allele_truth
+  )
   bench_validate_cnv_authority(evaluator_truth$cnv_truth, "cnv_truth")
   bench_validate_capabilities(evaluator_truth$capabilities)
   invisible(evaluator_truth)
@@ -579,8 +657,9 @@ bench_validate_micro_cohort <- function(bundle) {
 
 #' Generate a sealed deterministic GRCh38 micro-cohort
 #'
-#' Writes singleton, trio, and symbolic-CNV VCF fixtures with `vcfppR`. The
-#' returned `engine_input` contains only GRCh38 VCFs, person/sample mappings,
+#' Writes causal singleton, trio, symbolic-CNV, and confirmed-negative VCF
+#' fixtures with `vcfppR`. The returned `engine_input` contains only GRCh38
+#' VCFs, person/sample mappings,
 #' family presentation, and source documents. `evaluator_truth` is separate and
 #' is never supplied to a text provider or engine.
 #'
@@ -613,7 +692,8 @@ bench_generate_micro_cohort <- function(
   vcf_paths <- c(
     singleton = file.path(path, "micro-singleton-grch38.vcf.gz"),
     trio = file.path(path, "micro-trio-grch38.vcf.gz"),
-    symbolic_cnv = file.path(path, "micro-symbolic-cnv-grch38.vcf.gz")
+    symbolic_cnv = file.path(path, "micro-symbolic-cnv-grch38.vcf.gz"),
+    confirmed_negative = file.path(path, "micro-confirmed-negative-grch38.vcf.gz")
   )
   bench_write_vcf(
     vcf_paths[["singleton"]], "1", "MICRO_SINGLETON",
@@ -637,45 +717,61 @@ bench_generate_micro_cohort <- function(
     "7\t549997\t.\tT\t<DEL>\t60\tPASS\tEND=559997;SVTYPE=DEL\tGT:GQ:DP\t0/1:80:22",
     info = TRUE
   )
+  bench_write_vcf(
+    vcf_paths[["confirmed_negative"]], "1", "MICRO_NEGATIVE",
+    "1\t100000\t.\tC\tG\t60\tPASS\t.\tGT:GQ:DP\t0/1:91:34"
+  )
 
   cnv_id <- bench_cnv_candidate_id("GRCh38", "7", 549997L, 559997L, "DEL")
   cases <- data.frame(
-    case_id = c("micro-singleton", "micro-trio", "micro-xcnv"),
+    case_id = c(
+      "micro-singleton", "micro-trio", "micro-xcnv", "micro-negative"
+    ),
     cohort = "synthetic-micro-grch38",
-    target_type = c("variant", "variant", "cnv"),
-    truth_status = "known_causal",
+    target_type = c("variant", "variant", "cnv", "variant"),
+    truth_status = c(rep("known_causal", 3L), "confirmed_negative"),
     stringsAsFactors = FALSE
   )
   truth <- data.frame(
-    case_id = cases$case_id,
-    target_type = cases$target_type,
-    causal_id = c("1:100000:C:T", "2:199999:TG:T", cnv_id),
+    case_id = cases$case_id[1:3],
+    target_type = cases$target_type[1:3],
+    causal_id = c(
+      "GRCh38:1:100000:C:T:REF",
+      "GRCh38:2:199999:TG:T:ALT1",
+      cnv_id
+    ),
     stringsAsFactors = FALSE
   )
   generations <- data.frame(
     case_id = cases$case_id,
-    generation_id = c("micro-singleton-vcf", "micro-trio-vcf", "micro-symbolic-cnv-vcf"),
+    generation_id = c(
+      "micro-singleton-vcf", "micro-trio-vcf", "micro-symbolic-cnv-vcf",
+      "micro-confirmed-negative-vcf"
+    ),
     assembly = "GRCh38",
     vcf_path = unname(vcf_paths),
-    case_design = c("singleton", "trio", "symbolic_cnv"),
+    case_design = c("singleton", "trio", "symbolic_cnv", "singleton"),
     stringsAsFactors = FALSE
   )
   persons <- data.frame(
     case_id = c(
       "micro-singleton", "micro-trio", "micro-trio", "micro-trio",
-      "micro-xcnv"
+      "micro-xcnv", "micro-negative"
     ),
     person_id = c(
       "MICRO_SINGLETON", "MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER",
-      "MICRO_CNV_PROBAND"
+      "MICRO_CNV_PROBAND", "MICRO_NEGATIVE"
     ),
     vcf_sample_id = c(
       "MICRO_SINGLETON", "MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER",
-      "MICRO_CNV_PROBAND"
+      "MICRO_CNV_PROBAND", "MICRO_NEGATIVE"
     ),
-    is_proband = c(TRUE, TRUE, FALSE, FALSE, TRUE),
-    sex = c("male", "male", "female", "male", "female"),
-    affected = c("affected", "affected", "unaffected", "unaffected", "affected"),
+    is_proband = c(TRUE, TRUE, FALSE, FALSE, TRUE, TRUE),
+    sex = c("male", "male", "female", "male", "female", "unknown"),
+    affected = c(
+      "affected", "affected", "unaffected", "unaffected", "affected",
+      "affected"
+    ),
     stringsAsFactors = FALSE
   )
   relationships <- data.frame(
@@ -686,9 +782,17 @@ bench_generate_micro_cohort <- function(
     stringsAsFactors = FALSE
   )
   phenotype_plan <- data.frame(
-    case_id = c("micro-singleton", "micro-singleton", "micro-trio", "micro-trio"),
-    hpo_id = c("HP:0001250", "HP:0001252", "HP:0001263", "HP:0001250"),
-    context_status = c("present", "absent/negated", "uncertain", "family_history"),
+    case_id = c(
+      "micro-singleton", "micro-singleton", "micro-trio", "micro-trio",
+      "micro-negative"
+    ),
+    hpo_id = c(
+      "HP:0001250", "HP:0001252", "HP:0001263", "HP:0001250",
+      "HP:0004322"
+    ),
+    context_status = c(
+      "present", "absent/negated", "uncertain", "family_history", "present"
+    ),
     stringsAsFactors = FALSE
   )
   # Every case receives a document. The CNV case intentionally has an empty
@@ -724,59 +828,72 @@ bench_generate_micro_cohort <- function(
   documents <- do.call(rbind, documents)
   hpo_observations <- do.call(rbind, observations)
   inheritance_truth <- data.frame(
-    case_id = cases$case_id,
+    case_id = truth$case_id,
     causal_id = truth$causal_id,
     inheritance = c("unknown", "de_novo", "unknown"),
     stringsAsFactors = FALSE
   )
   allele_truth <- data.frame(
     case_id = c(
-      rep("micro-singleton", 2L), rep("micro-trio", 4L), "micro-xcnv"
+      rep("micro-singleton", 2L), rep("micro-trio", 4L), "micro-xcnv",
+      "micro-negative"
     ),
-    record_ordinal = c(1:2, 1:4, 1),
-    alt_ordinal = rep(1L, 7L),
-    assembly = rep("GRCh38", 7L),
-    source_contig = c(rep("1", 2L), rep("2", 4L), "7"),
+    record_ordinal = c(1:2, 1:4, 1, 1),
+    alt_ordinal = rep(1L, 8L),
+    assembly = rep("GRCh38", 8L),
+    source_contig = c(rep("1", 2L), rep("2", 4L), "7", "1"),
     source_position = c(100000L, 100100L, 199999L, 200100L, 200200L,
-                        200300L, 549997L),
-    source_reference = c("C", "TGC", "TG", "T", "A", "T", "T"),
-    source_alternate = c("T", "TC", "T", "A", "C", "C", "<DEL>"),
-    canonical_contig = c(rep("1", 2L), rep("2", 4L), "7"),
+                        200300L, 549997L, 100000L),
+    source_reference = c("C", "TGC", "TG", "T", "A", "T", "T", "C"),
+    source_alternate = c("T", "TC", "T", "A", "C", "C", "<DEL>", "G"),
+    canonical_contig = c(rep("1", 2L), rep("2", 4L), "7", "1"),
     canonical_position = c(100000L, 100100L, 199999L, 200100L, 200200L,
-                           200300L, 549997L),
-    canonical_reference = c("C", "TG", "TG", "T", "A", "T", "T"),
-    canonical_alternate = c("T", "T", "T", "A", "C", "C", "<DEL>"),
-    sequence_class = c("SNV", "indel", "indel", "SNV", "SNV", "SNV", "CNV"),
-    admission_status = c(rep("supported", 6L), "routed_symbolic_cnv"),
+                           200300L, 549997L, 100000L),
+    canonical_reference = c("C", "TG", "TG", "T", "A", "T", "T", "C"),
+    canonical_alternate = c("T", "T", "T", "A", "C", "C", "<DEL>", "G"),
+    sequence_class = c(
+      "SNV", "indel", "indel", "SNV", "SNV", "SNV", "CNV", "SNV"
+    ),
+    admission_status = c(rep("supported", 6L), "routed_symbolic_cnv", "supported"),
     stringsAsFactors = FALSE
   )
   genotype_truth <- data.frame(
     case_id = c(
-      rep("micro-singleton", 2L), rep("micro-trio", 12L), "micro-xcnv"
+      rep("micro-singleton", 2L), rep("micro-trio", 12L), "micro-xcnv",
+      "micro-negative"
     ),
     person_id = c(
       "MICRO_SINGLETON", "MICRO_SINGLETON",
       rep(c("MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER"), 4L),
-      "MICRO_CNV_PROBAND"
+      "MICRO_CNV_PROBAND", "MICRO_NEGATIVE"
     ),
-    record_ordinal = c(1L, 2L, rep(1:4, each = 3L), 1L),
-    alt_ordinal = rep(1L, 15L),
+    record_ordinal = c(1L, 2L, rep(1:4, each = 3L), 1L, 1L),
+    alt_ordinal = rep(1L, 16L),
     gt = c(
       "0/1", "0|1", "0/1", "0/0", "0/0", "0/1", "0/0", "0/0",
-      "0/1", "0/.", "./.", "0/1", "0/0", "0/0", "0/1"
+      "0/1", "0/.", "./.", "0/1", "0/0", "0/0", "0/1", "0/1"
     ),
-    gq = c(99, 78, 99, 99, 99, 72, 68, 70, 18, NA, NA, 8, 7, 8, 80),
-    dp = c(36, 31, 42, 39, 40, 30, 28, 29, 5, NA, NA, 3, 3, 3, 22),
-    ploidy = rep(2L, 15L),
-    phased = c(FALSE, TRUE, rep(FALSE, 13L)),
+    gq = c(99, 78, 99, 99, 99, 72, 68, 70, 18, NA, NA, 8, 7, 8, 80, 91),
+    dp = c(36, 31, 42, 39, 40, 30, 28, 29, 5, NA, NA, 3, 3, 3, 22, 34),
+    ploidy = rep(2L, 16L),
+    phased = c(FALSE, TRUE, rep(FALSE, 14L)),
     call_status = c(
       "called_alternate", "called_alternate",
       "called_alternate", "called_reference", "called_reference",
       "called_alternate", "called_reference", "called_reference",
       "called_alternate", "partial_no_call", "no_call",
       "called_alternate", "called_reference", "called_reference",
-      "called_alternate"
+      "called_alternate", "called_alternate"
     ),
+    stringsAsFactors = FALSE
+  )
+  causal_allele_truth <- data.frame(
+    case_id = c("micro-singleton", "micro-trio"),
+    target_type = "variant",
+    causal_id = truth$causal_id[truth$target_type == "variant"],
+    record_ordinal = c(1L, 1L),
+    allele_role = c("reference", "alternate"),
+    alt_ordinal = c(NA_integer_, 1L),
     stringsAsFactors = FALSE
   )
   cnv_truth <- data.frame(
@@ -791,14 +908,18 @@ bench_generate_micro_cohort <- function(
   )
   capabilities <- data.frame(
     capability_id = c(
-      "micro_vcf_grch38", "symbolic_cnv_transport", "realistic_exome_genome",
-      "related_ancestry_admixture", "multiplex_consanguinity", "broader_cnv_sv",
+      "micro_vcf_grch38", "symbolic_cnv_transport",
+      "reference_causal_allele_orientation", "confirmed_negative_case",
+      "realistic_exome_genome", "related_ancestry_admixture",
+      "multiplex_consanguinity", "broader_cnv_sv",
       "novel_gene_disease_historical_holdouts"
     ),
-    status = c("supported", "supported", rep("unsupported", 5L)),
+    status = c(rep("supported", 4L), rep("unsupported", 5L)),
     detail = c(
-      "Synthetic singleton, trio, and symbolic-CNV GRCh38 VCF fixtures.",
+      "Synthetic singleton, trio, symbolic-CNV, and negative GRCh38 VCF fixtures.",
       "One symbolic CNV fixture for XCNV transport integration with a proband.",
+      "One causal truth row explicitly targets the source REF allele.",
+      "One phenotyped case has called ALT alleles but confirmed-negative truth.",
       "No realistic exome or genome simulation is emitted.",
       "No related ancestry or admixture simulation is emitted.",
       "No multiplex or consanguinity simulation is emitted.",
@@ -824,6 +945,7 @@ bench_generate_micro_cohort <- function(
       inheritance_truth = inheritance_truth,
       allele_truth = allele_truth,
       genotype_truth = genotype_truth,
+      causal_allele_truth = causal_allele_truth,
       cnv_truth = cnv_truth,
       capabilities = capabilities
     )

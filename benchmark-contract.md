@@ -12,7 +12,7 @@ admission boundaries, not two views of one engine payload.
 | Bundle | Relations | Contract |
 |---|---|---|
 | `engine_input` | `case_manifest`, `generations`, `vcf_paths`, `persons`, `relationships`, `documents` | Contains only GRCh38 VCFs and family/clinical presentation. It must not contain causal IDs, evaluator truth, a reference result, or an oracle. |
-| `evaluator_truth` | `cases`, `truth`, `documents`, `hpo_observations`, `inheritance_truth`, `allele_truth`, `genotype_truth`, `cnv_truth`, `capabilities` | Kept outside provider and engine input. It is supplied only to evaluation. |
+| `evaluator_truth` | `cases`, `truth`, `documents`, `hpo_observations`, `inheritance_truth`, `allele_truth`, `genotype_truth`, `causal_allele_truth`, `cnv_truth`, `capabilities` | Kept outside provider and engine input. It is supplied only to evaluation. |
 
 The text provider receives only `case_id`, `phenotype_plan` (`hpo_id` and
 `context_status`), and relationships. It never receives causal variant or gene
@@ -34,7 +34,8 @@ validated core result relations.
 | `evaluations` | `run_id`, `case_id`, `target_type` | Contains exactly one row for every run × case unit; status is completed, failed, unsupported, or skipped. |
 | `candidates` | run/case/target/candidate | Candidates belong only to completed evaluations. Ranks are unique and contiguous from 1 per emitted case unit; emitters break score ties by `candidate_id`. |
 | `allele_observations` | case/source record/ALT ordinal | Preserves source and canonical GRCh38 geometry, sequence class, and admission status. |
-| `genotype_observations` | case/person/source record/ALT ordinal | Preserves GT, GQ, DP, ploidy, phase, and explicit call state without a quality threshold. |
+| `genotype_observations` | case/person/source record/ALT ordinal | Preserves GT, GQ, DP, ploidy, phase, and explicit ALT-relative call state without a quality threshold or pathogenicity inference. |
+| `causal_allele_truth` | causal variant answer/source record/allele role | Evaluator-only mapping from generic causal answer to source `reference` or one exact `alternate` ordinal. REF is permitted to be the pathogenic allele. |
 | `frequency_observations` | case/allele/provider row | Keeps exact case identity, shard localization, match/filter/observation state, provider-row multiplicity, global and group-maximum AC/AN/AF, and FAF95/FAF99. Zero-row matches have one explicit placeholder and no fabricated provider identity. |
 | `judgments` / `judgment_sources` | claim key / source key | Directional judgments cite matching source stance. Present spans are zero-based, half-open, and strictly nonempty. |
 
@@ -86,11 +87,12 @@ zero rather than `NA`.
 
 | Relation | Current contract |
 |---|---|
-| `generations` | One singleton, trio, and symbolic-CNV GRCh38 VCF written through `vcfppR`. |
-| `persons` | Singleton, all trio members, and the CNV proband, with exact VCF sample mappings. |
+| `generations` | Causal singleton, trio, symbolic-CNV, and confirmed-negative GRCh38 VCFs written through `vcfppR`. |
+| `persons` | Both singletons, all trio members, and the CNV proband, with exact VCF sample mappings. |
 | `relationships` | Latent trio presentation with two `biological_parent` edges. |
 | `allele_truth` | One row per case/source-record/ALT ordinal, retaining source and expected canonical geometry, sequence class, and admission status. |
-| `genotype_truth` | One row for every person and allele, retaining exact GT/GQ/DP, ploidy, phase, and call status. |
+| `genotype_truth` | One row for every person and ALT row, retaining exact GT/GQ/DP, ploidy, phase, and ALT-relative call status. |
+| `causal_allele_truth` | Variant causal answers mapped to source record plus `reference` or exact `alternate` ordinal; the singleton causal truth intentionally targets REF. |
 | `cnv_truth` | `case_id`, assembly, contig, CNV type, BED start/end, and authority. |
 | `capabilities` | Explicit `supported` or `unsupported` status and detail. |
 
@@ -121,9 +123,12 @@ remains unchanged. The sealed CNV truth retains assembly, type, contig,
 exact interval, and authority for future scientific evaluation; no current
 public metric interprets it and it never scores opaque CNV IDs.
 
-The cohort has a causal singleton SNV, a causal trio indel across every sample
-row, benign distractors, no-call contrasts, and the separately
-typed symbolic CNV. It does **not** simulate realistic exome/genome,
+The cohort has a causal singleton whose asserted pathogenic allele is source
+REF, a causal trio indel whose asserted allele is ALT1 across every sample row,
+benign distractors, no-call contrasts, the separately typed symbolic CNV, and a
+phenotyped confirmed-negative singleton with a called ALT but no causal truth.
+This prevents `REF`/`ALT` or call status from being mistaken for clinical
+orientation. It does **not** simulate realistic exome/genome,
 ancestry/admixture, multiplex/consanguinity, general CNV/SV, or novel
 gene-disease historical holdouts; each has an explicit unsupported capability
 row.
@@ -131,7 +136,9 @@ row.
 ## Other metrics and temporal status
 
 The sealed `allele_truth` relation is keyed by case/source-record/ALT ordinal;
-`genotype_truth` adds person grain. `bench_allele_transport_metrics()` compares
+`genotype_truth` adds person grain. `causal_allele_truth` is a separate mapping
+because assembly REF/ALT orientation does not imply pathogenicity or benignity.
+`bench_allele_transport_metrics()` compares
 source and canonical geometry, class, and admission status.
 `bench_genotype_transport_metrics()` compares GT/GQ/DP, ploidy, phase, and call
 state after rejecting internally inconsistent GT summaries. Missing or

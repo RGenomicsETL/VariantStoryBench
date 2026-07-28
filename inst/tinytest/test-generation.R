@@ -44,7 +44,10 @@ expect_equal(names(engine_input$persons), c(
 ))
 expect_equal(
   engine_input$persons$affected,
-  c("affected", "affected", "unaffected", "unaffected", "affected")
+  c(
+    "affected", "affected", "unaffected", "unaffected", "affected",
+    "affected"
+  )
 )
 expect_equal(names(engine_input$relationships), c(
   "case_id", "person_id", "relative_id", "relationship"
@@ -56,7 +59,7 @@ expect_false(any(grepl(
   paste(capture.output(str(engine_input)), collapse = " ")
 )))
 expect_equal(names(seen_presentation), c(
-  "micro-singleton", "micro-trio", "micro-xcnv"
+  "micro-singleton", "micro-trio", "micro-xcnv", "micro-negative"
 ))
 expect_false(any(grepl(
   "causal|truth|reference|oracle",
@@ -88,10 +91,18 @@ expect_error(
   VariantStoryBench:::bench_validate_engine_input(leaky_input),
   "cannot contain evaluator truth"
 )
-expect_equal(engine_input$generations$assembly, rep("GRCh38", 3L))
+expect_equal(engine_input$generations$assembly, rep("GRCh38", 4L))
 expect_equal(evaluator_truth$truth$causal_id, c(
-  "1:100000:C:T", "2:199999:TG:T", "GRCh38:7:549997:559997:DEL"
+  "GRCh38:1:100000:C:T:REF", "GRCh38:2:199999:TG:T:ALT1",
+  "GRCh38:7:549997:559997:DEL"
 ))
+expect_equal(evaluator_truth$cases$truth_status, c(
+  "known_causal", "known_causal", "known_causal", "confirmed_negative"
+))
+expect_equal(evaluator_truth$causal_allele_truth$allele_role,
+             c("reference", "alternate"))
+expect_true(is.na(evaluator_truth$causal_allele_truth$alt_ordinal[[1L]]))
+expect_equal(evaluator_truth$causal_allele_truth$alt_ordinal[[2L]], 1L)
 expect_equal(names(evaluator_truth$allele_truth), c(
   "case_id", "record_ordinal", "alt_ordinal", "assembly", "source_contig",
   "source_position", "source_reference", "source_alternate",
@@ -136,11 +147,11 @@ expect_equal(
 )
 expect_equal(
   evaluator_truth$hpo_observations$case_id,
-  rep(c("micro-singleton", "micro-trio"), each = 2L)
+  c(rep(c("micro-singleton", "micro-trio"), each = 2L), "micro-negative")
 )
 expect_equal(
   evaluator_truth$hpo_observations$person_id,
-  rep(c("MICRO_SINGLETON", "MICRO_PROBAND"), each = 2L)
+  c(rep(c("MICRO_SINGLETON", "MICRO_PROBAND"), each = 2L), "MICRO_NEGATIVE")
 )
 expect_equal(anyDuplicated(
   evaluator_truth$hpo_observations[c("case_id", "observation_id")]
@@ -150,7 +161,7 @@ expect_equal(
     match(evaluator_truth$hpo_observations$document_id,
           evaluator_truth$documents$document_id)
   ],
-  rep(c("micro-singleton", "micro-trio"), c(2L, 2L))
+  c(rep(c("micro-singleton", "micro-trio"), each = 2L), "micro-negative")
 )
 cnv_document <- evaluator_truth$documents[
   evaluator_truth$documents$case_id == "micro-xcnv", , drop = FALSE
@@ -162,6 +173,14 @@ expect_equal(
   0L
 )
 expect_equal(sum(evaluator_truth$capabilities$status == "unsupported"), 5L)
+expect_equal(
+  evaluator_truth$capabilities$status[
+    evaluator_truth$capabilities$capability_id %in% c(
+      "reference_causal_allele_orientation", "confirmed_negative_case"
+    )
+  ],
+  c("supported", "supported")
+)
 expect_equal(
   evaluator_truth$capabilities$status[
     evaluator_truth$capabilities$capability_id == "broader_cnv_sv"
@@ -218,9 +237,9 @@ hpo <- bench_hpo_metrics(
   evaluator_truth$documents, evaluator_truth$hpo_observations,
   evaluator_truth$hpo_observations
 )
-expect_equal(hpo$term_truth_count, 4L)
-expect_equal(hpo$context_truth_count, 4L)
-expect_equal(hpo$span_truth_count, 4L)
+expect_equal(hpo$term_truth_count, 5L)
+expect_equal(hpo$context_truth_count, 5L)
+expect_equal(hpo$span_truth_count, 5L)
 expect_equal(hpo$term_recall, 1)
 expect_equal(hpo$context_recall, 1)
 expect_equal(hpo$span_recall, 1)
@@ -231,9 +250,9 @@ transferred <- bench_hpo_metrics(
   evaluator_truth$documents, evaluator_truth$hpo_observations,
   transferred_hpo
 )
-expect_equal(transferred$term_true_positive_count, 3L)
-expect_equal(transferred$term_precision, 0.75)
-expect_equal(transferred$term_recall, 0.75)
+expect_equal(transferred$term_true_positive_count, 4L)
+expect_equal(transferred$term_precision, 0.8)
+expect_equal(transferred$term_recall, 0.8)
 leaky_bundle <- bundle
 leaky_bundle$evaluator_truth$hpo_observations$person_id[[1L]] <- "wrong-person"
 expect_error(
@@ -267,24 +286,24 @@ expect_false(is.nan(empty_hpo$term_f1))
 
 expect_equal(
   unname(as.integer(table(evaluator_truth$allele_truth$case_id))),
-  c(2L, 4L, 1L)
+  c(1L, 2L, 4L, 1L)
 )
 expect_equal(
   unname(as.integer(table(evaluator_truth$genotype_truth$case_id))),
-  c(2L, 12L, 1L)
+  c(1L, 2L, 12L, 1L)
 )
 allele_transport <- bench_allele_transport_metrics(
   evaluator_truth$allele_truth, evaluator_truth$allele_truth
 )
-expect_equal(allele_transport$exact_row_count, 7L)
+expect_equal(allele_transport$exact_row_count, 8L)
 expect_equal(allele_transport$exact_recall, 1)
 wrong_allele <- evaluator_truth$allele_truth
 wrong_allele$canonical_alternate[[2L]] <- "G"
 wrong_allele_transport <- bench_allele_transport_metrics(
   evaluator_truth$allele_truth, wrong_allele
 )
-expect_equal(wrong_allele_transport$exact_row_count, 6L)
-expect_equal(wrong_allele_transport$exact_recall, 6 / 7)
+expect_equal(wrong_allele_transport$exact_row_count, 7L)
+expect_equal(wrong_allele_transport$exact_recall, 7 / 8)
 missing_allele_transport <- bench_allele_transport_metrics(
   evaluator_truth$allele_truth, evaluator_truth$allele_truth[-2L, ]
 )
@@ -293,14 +312,14 @@ expect_equal(missing_allele_transport$missing_row_count, 1L)
 genotype_transport <- bench_genotype_transport_metrics(
   evaluator_truth$genotype_truth, evaluator_truth$genotype_truth
 )
-expect_equal(genotype_transport$exact_row_count, 15L)
+expect_equal(genotype_transport$exact_row_count, 16L)
 expect_equal(genotype_transport$exact_recall, 1)
 wrong_genotype <- evaluator_truth$genotype_truth
 wrong_genotype$gq[[1L]] <- 98
 wrong_genotype_transport <- bench_genotype_transport_metrics(
   evaluator_truth$genotype_truth, wrong_genotype
 )
-expect_equal(wrong_genotype_transport$exact_row_count, 14L)
+expect_equal(wrong_genotype_transport$exact_row_count, 15L)
 inconsistent_genotype <- evaluator_truth$genotype_truth
 inconsistent_genotype$phased[[2L]] <- FALSE
 expect_error(
@@ -315,6 +334,25 @@ expect_error(
   VariantStoryBench:::bench_validate_micro_cohort(leaky_allele),
   "cover every person and admitted allele"
 )
+wrong_reference_role <- bundle
+wrong_reference_role$evaluator_truth$causal_allele_truth$alt_ordinal[[1L]] <- 1L
+expect_error(
+  VariantStoryBench:::bench_validate_micro_cohort(wrong_reference_role),
+  "reference causal alleles require no ALT ordinal"
+)
+missing_causal_orientation <- bundle
+missing_causal_orientation$evaluator_truth$causal_allele_truth <-
+  missing_causal_orientation$evaluator_truth$causal_allele_truth[-1L, ]
+expect_error(
+  VariantStoryBench:::bench_validate_micro_cohort(missing_causal_orientation),
+  "cover exactly variant causal truth"
+)
+negative_genotype <- evaluator_truth$genotype_truth[
+  evaluator_truth$genotype_truth$case_id == "micro-negative", , drop = FALSE
+]
+expect_equal(negative_genotype$call_status, "called_alternate")
+expect_false("micro-negative" %in% evaluator_truth$truth$case_id)
+expect_false("micro-negative" %in% evaluator_truth$causal_allele_truth$case_id)
 
 runs <- data.frame(
   run_id = "sealed-fixture",
@@ -347,12 +385,16 @@ evaluation <- bench_evaluate_micro_cohort(
 expect_equal(evaluation$known_causal_case_count, c(1L, 2L))
 expect_equal(evaluation$target_type, c("cnv", "variant"))
 expect_equal(evaluation$top_1_recall, c(1, 1))
+expect_equal(evaluation$confirmed_negative_case_count, c(0L, 1L))
+expect_equal(evaluation$confirmed_negative_candidate_burden, c(NA, 0))
 
 if (requireNamespace("Rduckhts", quietly = TRUE) &&
     requireNamespace("DBI", quietly = TRUE)) {
   con <- Rduckhts::rduckhts_connect()
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
-  expected_rows <- c(singleton = 2L, trio = 4L, symbolic_cnv = 1L)
+  expected_rows <- c(
+    singleton = 2L, trio = 4L, symbolic_cnv = 1L, confirmed_negative = 1L
+  )
   for (name in names(engine_input$vcf_paths)) {
     table_name <- paste0("micro_", name)
     Rduckhts::rduckhts_bcf(

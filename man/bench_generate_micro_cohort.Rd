@@ -22,8 +22,9 @@ engine-facing presentation data.}
 A list with separate \code{engine_input} and \code{evaluator_truth} bundles.
 }
 \description{
-Writes singleton, trio, and symbolic-CNV VCF fixtures with \code{vcfppR}. The
-returned \code{engine_input} contains only GRCh38 VCFs, person/sample mappings,
+Writes causal singleton, trio, symbolic-CNV, and confirmed-negative VCF
+fixtures with \code{vcfppR}. The returned \code{engine_input} contains only GRCh38
+VCFs, person/sample mappings,
 family presentation, and source documents. \code{evaluator_truth} is separate and
 is never supplied to a text provider or engine.
 }

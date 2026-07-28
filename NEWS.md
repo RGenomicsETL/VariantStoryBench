@@ -1,5 +1,11 @@
 # VariantStoryBench 0.1.0.9000
 
+- Made clinical allele orientation explicit. `causal_allele_truth` now records
+  whether each variant causal answer targets the source REF allele or one exact
+  ALT ordinal; generic causal IDs include that role. A singleton intentionally
+  uses causal REF, while a phenotyped confirmed-negative case carries an ALT,
+  proving that `called_alternate` is transport state, not pathogenicity.
+
 - Split coarse sequence truth into exact `allele_truth` and `genotype_truth`.
   The former preserves source and expected canonical GRCh38 geometry by source
   record/ALT ordinal, including one deliberately suffix-minimized indel; the
