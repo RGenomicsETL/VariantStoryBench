@@ -22,7 +22,13 @@ remotes::install_github("RGenomicsETL/VariantStoryBench")
 ## Generate sealed inputs and evaluator truth
 
 The generator writes causal singleton, trio, symbolic-CNV, and
-phenotyped confirmed-negative VCFs with `vcfppR`. The engine-facing
+phenotyped confirmed-negative VCFs with `vcfppR`. Case, sample, and VCF
+identifiers are opaque and stable across runs. The generated
+`engine_input/` directory contains only engine relations and VCFs;
+`evaluator_truth/` contains the answer relations. Give an adapter only
+the engine directory in an isolated process or environment without
+access to its sibling directory. The returned R bundle contains both
+components and must stay in the evaluator process. The engine-facing
 bundle contains only VCFs, GRCh38 generations, persons with exact VCF
 sample IDs, family presentation, and clinical documents. `persons` has
 `case_id`, `person_id`, `vcf_sample_id`, `is_proband`, `sex`, and
@@ -54,12 +60,8 @@ paste(names(bundle$engine_input), collapse = ", ")
 #> [1] "case_manifest, generations, vcf_paths, persons, relationships, documents"
 paste(names(bundle$evaluator_truth), collapse = ", ")
 #> [1] "cases, truth, documents, hpo_observations, inheritance_truth, allele_truth, genotype_truth, causal_allele_truth, cnv_truth, capabilities"
-bundle$engine_input$generations[, c("generation_id", "assembly", "case_design")]
-#>                  generation_id assembly  case_design
-#> 1          micro-singleton-vcf   GRCh38    singleton
-#> 2               micro-trio-vcf   GRCh38         trio
-#> 3       micro-symbolic-cnv-vcf   GRCh38 symbolic_cnv
-#> 4 micro-confirmed-negative-vcf   GRCh38    singleton
+sum(bundle$engine_input$generations$assembly == "GRCh38")
+#> [1] 4
 ```
 
 A text provider receives only a case ID, HPO/context presentation, and
@@ -111,10 +113,12 @@ bench_hpo_metrics(
 
 ## Declared engine results
 
-There is currently no bundled engine adapter. A caller may run a
-concrete sealed adapter outside the package, passing only
-`bundle$engine_input`, then supply declared `runs`, `evaluations`, and
-`candidates` to evaluation with `bundle$evaluator_truth`.
+There is currently no bundled engine adapter. Give an isolated adapter
+the `engine_input/` directory, with VCF paths resolved in that
+environment. Keep the `evaluator_truth/` directory and the returned R
+bundle in the evaluator’s process. Supply declared `runs`,
+`evaluations`, and `candidates` to evaluation with
+`bundle$evaluator_truth`.
 
 ``` r
 metrics <- bench_evaluate_micro_cohort(
@@ -193,4 +197,4 @@ targets::tar_make(callr_function = NULL)
 
 ## Licence
 
-GPL-3. See `DESCRIPTION`.
+GPL (\>= 2). See `DESCRIPTION` and `LICENSE`.

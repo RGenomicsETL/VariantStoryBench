@@ -1,5 +1,9 @@
 # VariantStoryBench 0.1.0.9000
 
+- Licensed under GPL (>= 2).
+- Engine-facing cases, samples, and VCF paths use stable opaque identifiers;
+  engine and evaluator relations are written to separate directories.
+
 - Separated source admission from CNV routing truth: `allele_truth` now carries
   `source_admission_status`, while `cnv_truth` carries independent
   `routing_status` and `routing_authority`. Genotype truth now transports
@@ -78,11 +82,10 @@
 - Promoted the symbolic deletion to a typed `cnv` case with GRCh38/BED
   coordinates and XCNV authority; CNV metrics now score
   assembly/type/interval separately from authority.
-- Removed generic temporal anti-join-count validation and metrics. Executable
-  source selection remains unsupported, but the first temporal release now has
-  selected provider-specific availability epochs, ClinVar-transition and case-
-  reanalysis tracks, exact PM5 truth rules, and a receipt-bound LLM document-
-  authoring design.
+- Defined a temporal benchmark design with selected provider-specific
+  availability epochs, ClinVar-transition and case-reanalysis tracks, exact
+  PM5 truth rules, and receipt-bound LLM document authoring. Executable
+  source selection is not implemented.
 - Added sealed-bundle leakage, all-VCF Rduckhts round-trip, canonical HPO,
   empty-denominator, and typed-CNV regression coverage.
 
@@ -125,4 +128,3 @@
   applicable; unsupported model prose is rejected.
 - Added grounding audit metrics without presenting citation presence as
   scientific correctness.
-- Released the package under GPL-3.
