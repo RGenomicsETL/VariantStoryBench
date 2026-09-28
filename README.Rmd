@@ -30,7 +30,7 @@ remotes::install_github("RGenomicsETL/VariantStoryBench")
 The generator writes causal singleton, trio, symbolic-CNV, and phenotyped
 confirmed-negative VCFs with `vcfppR`. Case, sample, and VCF identifiers are
 opaque and stable across runs. The generated `engine_input/` directory contains
-only engine relations and VCFs; `evaluator_truth/` contains the answer relations.
+only engine relations and VCFs; `evaluator_truth/` contains the answer relations and fixture-role mapping.
 Give an adapter only the engine directory in an isolated process or environment
 without access to its sibling directory. The returned R bundle contains both
 components and must stay in the evaluator process.

@@ -25,16 +25,17 @@ The generator writes causal singleton, trio, symbolic-CNV, and
 phenotyped confirmed-negative VCFs with `vcfppR`. Case, sample, and VCF
 identifiers are opaque and stable across runs. The generated
 `engine_input/` directory contains only engine relations and VCFs;
-`evaluator_truth/` contains the answer relations. Give an adapter only
-the engine directory in an isolated process or environment without
-access to its sibling directory. The returned R bundle contains both
-components and must stay in the evaluator process. The engine-facing
-bundle contains only VCFs, GRCh38 generations, persons with exact VCF
-sample IDs, family presentation, and clinical documents. `persons` has
-`case_id`, `person_id`, `vcf_sample_id`, `is_proband`, `sex`, and
-`affected`; `relationships` uses `case_id`, `person_id`, `relative_id`,
-and `relationship`. The evaluator-only bundle contains causal answers
-and latent observations. No reference result or oracle is supplied.
+`evaluator_truth/` contains the answer relations and fixture-role
+mapping. Give an adapter only the engine directory in an isolated
+process or environment without access to its sibling directory. The
+returned R bundle contains both components and must stay in the
+evaluator process. The engine-facing bundle contains only VCFs, GRCh38
+generations, persons with exact VCF sample IDs, family presentation, and
+clinical documents. `persons` has `case_id`, `person_id`,
+`vcf_sample_id`, `is_proband`, `sex`, and `affected`; `relationships`
+uses `case_id`, `person_id`, `relative_id`, and `relationship`. The
+evaluator-only bundle contains causal answers and latent observations.
+No reference result or oracle is supplied.
 
 The generated records use Ensembl GRCh38 primary-assembly contig names
 and these verified reference alleles:

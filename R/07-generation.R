@@ -849,6 +849,7 @@ bench_generate_micro_cohort <- function(
   cnv_id <- bench_cnv_candidate_id("GRCh38", "7", 549997L, 559997L, "DEL")
   cases <- data.frame(
     case_id = cid(names(case_ids)),
+    fixture_role = names(case_ids),
     cohort = "synthetic-micro-grch38",
     target_type = c("variant", "variant", "cnv", "variant"),
     truth_status = c(rep("known_causal", 3L), "confirmed_negative"),

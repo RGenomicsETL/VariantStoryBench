@@ -66,6 +66,9 @@ expect_error(bench_generate_micro_cohort(dirname(engine_dir)),
              "unexpected files")
 unlink(file.path(engine_dir, "unrecognized.csv"))
 expect_equal(names(engine_input$vcf_paths), case_ids)
+expect_equal(evaluator_truth$cases$fixture_role,
+             c("micro-singleton", "micro-trio", "micro-xcnv", "micro-negative"))
+expect_false(any(grepl("fixture_role", unlist(lapply(engine_csv, names)))))
 
 expect_equal(sort(names(bundle)), c("engine_input", "evaluator_truth"))
 expect_equal(sort(names(engine_input)), c(
