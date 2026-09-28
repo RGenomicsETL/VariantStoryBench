@@ -11,7 +11,8 @@ bench_generate_micro_cohort(
 )
 }
 \arguments{
-\item{path}{Existing or creatable output directory.}
+\item{path}{Existing or creatable output directory. Engine-facing files are
+written under \verb{engine_input/}; evaluator relations under \verb{evaluator_truth/}.}
 
 \item{text_provider}{Function that realizes a clinical source document from
 engine-facing presentation data.}

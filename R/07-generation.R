@@ -768,7 +768,8 @@ bench_validate_micro_cohort <- function(bundle) {
 #' observations. The generated observations use the unchanged canonical
 #' `ducksemantics` HPO observation contract.
 #'
-#' @param path Existing or creatable output directory.
+#' @param path Existing or creatable output directory. Engine-facing files are
+#'   written under `engine_input/`; evaluator relations under `evaluator_truth/`.
 #' @param text_provider Function that realizes a clinical source document from
 #'   engine-facing presentation data.
 #' @param provider_id Declared identity of `text_provider`.
@@ -788,22 +789,46 @@ bench_generate_micro_cohort <- function(
   if (!dir.exists(path)) stop("could not create path: ", path, call. = FALSE)
   path <- normalizePath(path, winslash = "/", mustWork = TRUE)
 
-  vcf_paths <- c(
-    singleton = file.path(path, "micro-singleton-grch38.vcf.gz"),
-    trio = file.path(path, "micro-trio-grch38.vcf.gz"),
-    symbolic_cnv = file.path(path, "micro-symbolic-cnv-grch38.vcf.gz"),
-    confirmed_negative = file.path(path, "micro-confirmed-negative-grch38.vcf.gz")
+  case_ids <- stats::setNames(
+    paste0("c-", vapply(seq_len(4L), function(i) {
+      substr(digest::digest(paste0("micro-grch38:1:", i), algo = "sha256",
+                            serialize = FALSE), 1L, 24L)
+    }, character(1))),
+    c("micro-singleton", "micro-trio", "micro-xcnv", "micro-negative")
   )
+  cid <- function(role) unname(case_ids[role])
+  person_ids <- stats::setNames(
+    c(paste0(cid(names(case_ids)), "-p1"),
+      paste0(cid("micro-trio"), c("-p2", "-p3"))),
+    c("MICRO_SINGLETON", "MICRO_PROBAND", "MICRO_CNV_PROBAND",
+      "MICRO_NEGATIVE", "MICRO_MOTHER", "MICRO_FATHER")
+  )
+  pid <- function(role) unname(person_ids[role])
+  engine_dir <- file.path(path, "engine_input")
+  truth_dir <- file.path(path, "evaluator_truth")
+  dir.create(engine_dir, showWarnings = FALSE)
+  dir.create(truth_dir, showWarnings = FALSE)
+  vcf_paths <- stats::setNames(
+    file.path(engine_dir, paste0(cid(names(case_ids)), ".vcf.gz")),
+    cid(names(case_ids))
+  )
+  expected_files <- c(basename(vcf_paths),
+                      paste0(c("case_manifest", "generations", "persons",
+                               "relationships", "documents"), ".csv"))
+  if (length(setdiff(list.files(engine_dir, all.files = TRUE, no.. = TRUE),
+                     expected_files))) {
+    stop("engine_input directory contains unexpected files", call. = FALSE)
+  }
   bench_write_vcf(
-    vcf_paths[["singleton"]], "1", "MICRO_SINGLETON",
+    vcf_paths[[1L]], "1", pid("MICRO_SINGLETON"),
     c(
       "1\t100000\t.\tC\tT\t60\tPASS\t.\tGT:GQ:DP\t0/1:99:36",
       "1\t100100\t.\tTGC\tTC\t60\tPASS\t.\tGT:GQ:DP\t0|1:78:31"
     )
   )
   bench_write_vcf(
-    vcf_paths[["trio"]], "2",
-    c("MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER"),
+    vcf_paths[[2L]], "2",
+    pid(c("MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER")),
     c(
       "2\t199999\t.\tTG\tT\t60\tPASS\t.\tGT:GQ:DP\t0/1:99:42\t0/0:99:39\t0/0:99:40",
       "2\t200100\t.\tT\tA\t60\tPASS\t.\tGT:GQ:DP\t0/1:72:30\t0/0:68:28\t0/0:70:29",
@@ -812,20 +837,19 @@ bench_generate_micro_cohort <- function(
     )
   )
   bench_write_vcf(
-    vcf_paths[["symbolic_cnv"]], "7", "MICRO_CNV_PROBAND",
+    vcf_paths[[3L]], "7", pid("MICRO_CNV_PROBAND"),
     "7\t549997\t.\tT\t<DEL>\t60\tPASS\tEND=559997;SVTYPE=DEL\tGT:GQ:DP\t0/1:80:22",
     info = TRUE
   )
   bench_write_vcf(
-    vcf_paths[["confirmed_negative"]], "1", "MICRO_NEGATIVE",
+    vcf_paths[[4L]], "1", pid("MICRO_NEGATIVE"),
     "1\t100000\t.\tC\tG\t60\tPASS\t.\tGT:GQ:DP\t0/1:91:34"
   )
 
   cnv_id <- bench_cnv_candidate_id("GRCh38", "7", 549997L, 559997L, "DEL")
   cases <- data.frame(
-    case_id = c(
-      "micro-singleton", "micro-trio", "micro-xcnv", "micro-negative"
-    ),
+    case_id = cid(names(case_ids)),
+    fixture_role = names(case_ids),
     cohort = "synthetic-micro-grch38",
     target_type = c("variant", "variant", "cnv", "variant"),
     truth_status = c(rep("known_causal", 3L), "confirmed_negative"),
@@ -843,28 +867,25 @@ bench_generate_micro_cohort <- function(
   )
   generations <- data.frame(
     case_id = cases$case_id,
-    generation_id = c(
-      "micro-singleton-vcf", "micro-trio-vcf", "micro-symbolic-cnv-vcf",
-      "micro-confirmed-negative-vcf"
-    ),
+    generation_id = paste0(cases$case_id, "-g1"),
     assembly = "GRCh38",
     vcf_path = unname(vcf_paths),
     case_design = c("singleton", "trio", "symbolic_cnv", "singleton"),
     stringsAsFactors = FALSE
   )
   persons <- data.frame(
-    case_id = c(
+    case_id = cid(c(
       "micro-singleton", "micro-trio", "micro-trio", "micro-trio",
       "micro-xcnv", "micro-negative"
-    ),
-    person_id = c(
+    )),
+    person_id = pid(c(
       "MICRO_SINGLETON", "MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER",
       "MICRO_CNV_PROBAND", "MICRO_NEGATIVE"
-    ),
-    vcf_sample_id = c(
+    )),
+    vcf_sample_id = pid(c(
       "MICRO_SINGLETON", "MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER",
       "MICRO_CNV_PROBAND", "MICRO_NEGATIVE"
-    ),
+    )),
     is_proband = c(TRUE, TRUE, FALSE, FALSE, TRUE, TRUE),
     sex = c("male", "male", "female", "male", "female", "unknown"),
     affected = c(
@@ -874,17 +895,17 @@ bench_generate_micro_cohort <- function(
     stringsAsFactors = FALSE
   )
   relationships <- data.frame(
-    case_id = c("micro-trio", "micro-trio"),
-    person_id = "MICRO_PROBAND",
-    relative_id = c("MICRO_MOTHER", "MICRO_FATHER"),
+    case_id = rep(cid("micro-trio"), 2L),
+    person_id = pid("MICRO_PROBAND"),
+    relative_id = pid(c("MICRO_MOTHER", "MICRO_FATHER")),
     relationship = c("biological_parent", "biological_parent"),
     stringsAsFactors = FALSE
   )
   phenotype_plan <- data.frame(
-    case_id = c(
+    case_id = cid(c(
       "micro-singleton", "micro-singleton", "micro-trio", "micro-trio",
       "micro-negative"
-    ),
+    )),
     hpo_id = c(
       "HP:0001250", "HP:0001252", "HP:0001263", "HP:0001250",
       "HP:0004322"
@@ -933,10 +954,10 @@ bench_generate_micro_cohort <- function(
     stringsAsFactors = FALSE
   )
   allele_truth <- data.frame(
-    case_id = c(
+    case_id = cid(c(
       rep("micro-singleton", 2L), rep("micro-trio", 4L), "micro-xcnv",
       "micro-negative"
-    ),
+    )),
     record_ordinal = c(1:2, 1:4, 1, 1),
     alt_ordinal = rep(1L, 8L),
     assembly = rep("GRCh38", 8L),
@@ -959,15 +980,15 @@ bench_generate_micro_cohort <- function(
     stringsAsFactors = FALSE
   )
   genotype_truth <- data.frame(
-    case_id = c(
+    case_id = cid(c(
       rep("micro-singleton", 2L), rep("micro-trio", 12L), "micro-xcnv",
       "micro-negative"
-    ),
-    person_id = c(
+    )),
+    person_id = pid(c(
       "MICRO_SINGLETON", "MICRO_SINGLETON",
       rep(c("MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER"), 4L),
       "MICRO_CNV_PROBAND", "MICRO_NEGATIVE"
-    ),
+    )),
     record_ordinal = c(1L, 2L, rep(1:4, each = 3L), 1L, 1L),
     alt_ordinal = rep(1L, 16L),
     gt = c(
@@ -992,7 +1013,7 @@ bench_generate_micro_cohort <- function(
     stringsAsFactors = FALSE
   )
   causal_allele_truth <- data.frame(
-    case_id = c("micro-singleton", "micro-trio"),
+    case_id = cid(c("micro-singleton", "micro-trio")),
     target_type = "variant",
     causal_id = truth$causal_id[truth$target_type == "variant"],
     record_ordinal = c(1L, 1L),
@@ -1001,7 +1022,7 @@ bench_generate_micro_cohort <- function(
     stringsAsFactors = FALSE
   )
   cnv_truth <- data.frame(
-    case_id = "micro-xcnv",
+    case_id = cid("micro-xcnv"),
     assembly = "GRCh38",
     contig = "7",
     cnv_type = "DEL",
@@ -1056,6 +1077,18 @@ bench_generate_micro_cohort <- function(
     )
   )
   bench_validate_micro_cohort(bundle)
+  for (relation in names(bundle$engine_input)) {
+    if (is.data.frame(bundle$engine_input[[relation]])) {
+      utils::write.csv(bundle$engine_input[[relation]],
+                       file.path(engine_dir, paste0(relation, ".csv")),
+                       row.names = FALSE, na = "")
+    }
+  }
+  for (relation in names(bundle$evaluator_truth)) {
+    utils::write.csv(bundle$evaluator_truth[[relation]],
+                     file.path(truth_dir, paste0(relation, ".csv")),
+                     row.names = FALSE, na = "")
+  }
   bundle
 }
 

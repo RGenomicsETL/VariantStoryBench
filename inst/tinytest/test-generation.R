@@ -33,6 +33,42 @@ bundle <- bench_generate_micro_cohort(
 )
 engine_input <- bundle$engine_input
 evaluator_truth <- bundle$evaluator_truth
+case_ids <- evaluator_truth$cases$case_id
+engine_dir <- dirname(engine_input$vcf_paths[[1L]])
+truth_dir <- file.path(dirname(engine_dir), "evaluator_truth")
+expect_true(dir.exists(truth_dir))
+expect_equal(length(list.files(truth_dir, pattern = "[.]csv$")),
+             length(evaluator_truth))
+engine_files <- list.files(engine_dir, recursive = TRUE, full.names = TRUE)
+expect_equal(length(engine_files), 4L + length(engine_input) - 1L)
+expect_false(any(grepl(
+  "causal|truth|oracle|negative|singleton|trio|xcnv|cnv",
+  basename(engine_files), ignore.case = TRUE
+)))
+engine_csv <- lapply(engine_files[grepl("[.]csv$", engine_files)],
+                     utils::read.csv, stringsAsFactors = FALSE)
+expect_false(any(grepl("causal|truth|reference|oracle",
+                       unlist(lapply(engine_csv, names)), ignore.case = TRUE)))
+engine_text <- c(unlist(lapply(engine_files[grepl("[.]csv$", engine_files)],
+                               readLines), use.names = FALSE),
+                 unlist(lapply(engine_input$vcf_paths, function(path) {
+                   readLines(gzfile(path))
+                 }), use.names = FALSE))
+expect_false(any(grepl("micro-(singleton|trio|xcnv|negative)|MICRO_",
+                       engine_text)))
+expect_true(all(grepl("^c-[0-9a-f]{24}$", case_ids)))
+other_bundle <- bench_generate_micro_cohort(tempfile("bench-independent-"))
+expect_equal(other_bundle$engine_input$case_manifest$case_id, case_ids)
+expect_equal(other_bundle$engine_input$persons$vcf_sample_id,
+             engine_input$persons$vcf_sample_id)
+writeLines("untrusted", file.path(engine_dir, "unrecognized.csv"))
+expect_error(bench_generate_micro_cohort(dirname(engine_dir)),
+             "unexpected files")
+unlink(file.path(engine_dir, "unrecognized.csv"))
+expect_equal(names(engine_input$vcf_paths), case_ids)
+expect_equal(evaluator_truth$cases$fixture_role,
+             c("micro-singleton", "micro-trio", "micro-xcnv", "micro-negative"))
+expect_false(any(grepl("fixture_role", unlist(lapply(engine_csv, names)))))
 
 expect_equal(sort(names(bundle)), c("engine_input", "evaluator_truth"))
 expect_equal(sort(names(engine_input)), c(
@@ -58,9 +94,7 @@ expect_false(any(grepl(
   "causal|truth|reference|oracle",
   paste(capture.output(str(engine_input)), collapse = " ")
 )))
-expect_equal(names(seen_presentation), c(
-  "micro-singleton", "micro-trio", "micro-xcnv", "micro-negative"
-))
+expect_equal(names(seen_presentation), case_ids)
 expect_false(any(grepl(
   "causal|truth|reference|oracle",
   paste(capture.output(str(seen_presentation)), collapse = " ")
@@ -69,7 +103,7 @@ expect_true(all(file.exists(engine_input$vcf_paths)))
 expect_equal(engine_input$relationships$relationship,
              c("biological_parent", "biological_parent"))
 expect_equal(engine_input$relationships$relative_id,
-             c("MICRO_MOTHER", "MICRO_FATHER"))
+             engine_input$persons$person_id[c(3L, 4L)])
 expect_equal(
   sort(unique(engine_input$documents$case_id)),
   sort(engine_input$case_manifest$case_id)
@@ -114,7 +148,7 @@ expect_equal(names(evaluator_truth$genotype_truth), c(
   "dp", "alt_count", "ploidy", "phased", "phase_set", "call_status"
 ))
 trimmed <- evaluator_truth$allele_truth[
-  evaluator_truth$allele_truth$case_id == "micro-singleton" &
+  evaluator_truth$allele_truth$case_id == case_ids[[1L]] &
     evaluator_truth$allele_truth$record_ordinal == 2L, , drop = FALSE
 ]
 expect_equal(trimmed$source_reference, "TGC")
@@ -123,14 +157,14 @@ expect_equal(trimmed$canonical_reference, "TG")
 expect_equal(trimmed$canonical_alternate, "T")
 expect_equal(
   evaluator_truth$genotype_truth$phased[
-    evaluator_truth$genotype_truth$case_id == "micro-singleton" &
+    evaluator_truth$genotype_truth$case_id == case_ids[[1L]] &
       evaluator_truth$genotype_truth$record_ordinal == 2L
   ],
   TRUE
 )
 expect_equal(
   evaluator_truth$genotype_truth$alt_count[
-    evaluator_truth$genotype_truth$case_id == "micro-trio" &
+    evaluator_truth$genotype_truth$case_id == case_ids[[2L]] &
       evaluator_truth$genotype_truth$record_ordinal == 3L
   ],
   c(1L, NA_integer_, NA_integer_)
@@ -163,11 +197,12 @@ expect_equal(
 )
 expect_equal(
   evaluator_truth$hpo_observations$case_id,
-  c(rep(c("micro-singleton", "micro-trio"), each = 2L), "micro-negative")
+  c(rep(case_ids[1:2], each = 2L), case_ids[[4L]])
 )
 expect_equal(
   evaluator_truth$hpo_observations$person_id,
-  c(rep(c("MICRO_SINGLETON", "MICRO_PROBAND"), each = 2L), "MICRO_NEGATIVE")
+  c(rep(engine_input$persons$person_id[1:2], each = 2L),
+    engine_input$persons$person_id[[6L]])
 )
 expect_equal(anyDuplicated(
   evaluator_truth$hpo_observations[c("case_id", "observation_id")]
@@ -177,10 +212,10 @@ expect_equal(
     match(evaluator_truth$hpo_observations$document_id,
           evaluator_truth$documents$document_id)
   ],
-  c(rep(c("micro-singleton", "micro-trio"), each = 2L), "micro-negative")
+  c(rep(case_ids[1:2], each = 2L), case_ids[[4L]])
 )
 cnv_document <- evaluator_truth$documents[
-  evaluator_truth$documents$case_id == "micro-xcnv", , drop = FALSE
+  evaluator_truth$documents$case_id == case_ids[[3L]], , drop = FALSE
 ]
 expect_equal(nrow(cnv_document), 1L)
 expect_true(nzchar(cnv_document$source_text))
@@ -209,40 +244,40 @@ generations <- bench_read_manifest(generation_csv, "generations")
 expect_equal(generations$generation_id, engine_input$generations$generation_id)
 
 singleton_reader <- vcfppR::vcfreader$new(
-  engine_input$vcf_paths[["singleton"]]
+  engine_input$vcf_paths[[1L]]
 )
 expect_true(grepl(
   "##fileformat=VCFv4.2", singleton_reader$header(), fixed = TRUE
 ))
-singleton <- vcfppR::vcftable(engine_input$vcf_paths[["singleton"]], format = "GQ")
+singleton <- vcfppR::vcftable(engine_input$vcf_paths[[1L]], format = "GQ")
 expect_equal(singleton$chr, c("1", "1"))
 expect_equal(singleton$pos, c(100000, 100100))
 expect_equal(singleton$ref, c("C", "TGC"))
 expect_equal(singleton$alt, c("T", "TC"))
 expect_equal(as.integer(singleton$GQ[, 1L]), c(99L, 78L))
-singleton_lines <- readLines(gzfile(engine_input$vcf_paths[["singleton"]]))
+singleton_lines <- readLines(gzfile(engine_input$vcf_paths[[1L]]))
 expect_true(any(grepl("0|1:78:31", singleton_lines, fixed = TRUE)))
 
-trio <- vcfppR::vcftable(engine_input$vcf_paths[["trio"]], format = "GQ")
+trio <- vcfppR::vcftable(engine_input$vcf_paths[[2L]], format = "GQ")
 expect_equal(trio$chr, rep("2", 4L))
 expect_equal(trio$ref, c("TG", "T", "A", "T"))
 expect_equal(trio$alt, c("T", "A", "C", "C"))
 
-trio_gq <- vcfppR::vcftable(engine_input$vcf_paths[["trio"]], format = "GQ")
-trio_dp <- vcfppR::vcftable(engine_input$vcf_paths[["trio"]], format = "DP")
-expect_equal(trio_gq$samples, c("MICRO_PROBAND", "MICRO_MOTHER", "MICRO_FATHER"))
+trio_gq <- vcfppR::vcftable(engine_input$vcf_paths[[2L]], format = "GQ")
+trio_dp <- vcfppR::vcftable(engine_input$vcf_paths[[2L]], format = "DP")
+expect_equal(trio_gq$samples, engine_input$persons$vcf_sample_id[2:4])
 expect_equal(as.integer(trio_gq$GQ[1L, ]), c(99L, 99L, 99L))
 expect_equal(as.integer(trio_dp$DP[1L, ]), c(42L, 39L, 40L))
 expect_true(is.na(trio_gq$GQ[3L, 2L]))
 expect_equal(as.integer(trio_gq$GQ[4L, ]), c(8L, 7L, 8L))
 
-cnv_table <- vcfppR::vcftable(engine_input$vcf_paths[["symbolic_cnv"]])
+cnv_table <- vcfppR::vcftable(engine_input$vcf_paths[[3L]])
 expect_equal(cnv_table$chr, "7")
 expect_equal(cnv_table$pos, 549997)
 expect_equal(cnv_table$ref, "T")
 expect_equal(cnv_table$alt, "<DEL>")
 
-cnv_reader <- vcfppR::vcfreader$new(engine_input$vcf_paths[["symbolic_cnv"]])
+cnv_reader <- vcfppR::vcfreader$new(engine_input$vcf_paths[[3L]])
 expect_true(grepl("##reference=GRCh38", cnv_reader$header(), fixed = TRUE))
 expect_true(cnv_reader$variant())
 expect_true(cnv_reader$isSV())
@@ -301,12 +336,14 @@ expect_true(is.na(empty_hpo$term_f1))
 expect_false(is.nan(empty_hpo$term_f1))
 
 expect_equal(
-  unname(as.integer(table(evaluator_truth$allele_truth$case_id))),
-  c(1L, 2L, 4L, 1L)
+  as.integer(table(factor(evaluator_truth$allele_truth$case_id,
+                          levels = case_ids))),
+  c(2L, 4L, 1L, 1L)
 )
 expect_equal(
-  unname(as.integer(table(evaluator_truth$genotype_truth$case_id))),
-  c(1L, 2L, 12L, 1L)
+  as.integer(table(factor(evaluator_truth$genotype_truth$case_id,
+                          levels = case_ids))),
+  c(2L, 12L, 1L, 1L)
 )
 allele_transport <- bench_allele_transport_metrics(
   evaluator_truth$allele_truth, evaluator_truth$allele_truth
@@ -409,11 +446,11 @@ expect_error(
   "cover exactly variant causal truth"
 )
 negative_genotype <- evaluator_truth$genotype_truth[
-  evaluator_truth$genotype_truth$case_id == "micro-negative", , drop = FALSE
+  evaluator_truth$genotype_truth$case_id == case_ids[[4L]], , drop = FALSE
 ]
 expect_equal(negative_genotype$call_status, "called_alternate")
-expect_false("micro-negative" %in% evaluator_truth$truth$case_id)
-expect_false("micro-negative" %in% evaluator_truth$causal_allele_truth$case_id)
+expect_false(case_ids[[4L]] %in% evaluator_truth$truth$case_id)
+expect_false(case_ids[[4L]] %in% evaluator_truth$causal_allele_truth$case_id)
 
 runs <- data.frame(
   run_id = "sealed-fixture",
@@ -450,21 +487,21 @@ expect_equal(evaluation$confirmed_negative_case_count, c(0L, 1L))
 expect_equal(evaluation$confirmed_negative_candidate_burden, c(NA, 0))
 
 if (requireNamespace("Rduckhts", quietly = TRUE) &&
-    requireNamespace("DBI", quietly = TRUE)) {
+    requireNamespace("DBI", quietly = TRUE) &&
+    all(c("rduckhts_connect", "rduckhts_bcf") %in%
+        getNamespaceExports("Rduckhts"))) {
   con <- Rduckhts::rduckhts_connect()
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
-  expected_rows <- c(
-    singleton = 2L, trio = 4L, symbolic_cnv = 1L, confirmed_negative = 1L
-  )
-  for (name in names(engine_input$vcf_paths)) {
-    table_name <- paste0("micro_", name)
+  expected_rows <- c(2L, 4L, 1L, 1L)
+  for (i in seq_along(engine_input$vcf_paths)) {
+    table_name <- paste0("micro_", i)
     Rduckhts::rduckhts_bcf(
-      con, table_name, engine_input$vcf_paths[[name]],
+      con, table_name, engine_input$vcf_paths[[i]],
       scan_mode = "sequential", overwrite = TRUE
     )
     round_trip <- DBI::dbGetQuery(
       con, paste0("SELECT count(*) AS n FROM ", table_name)
     )
-    expect_equal(round_trip$n, expected_rows[[name]])
+    expect_equal(round_trip$n, expected_rows[[i]])
   }
 }

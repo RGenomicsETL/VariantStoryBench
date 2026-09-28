@@ -1,4 +1,5 @@
 ^\.github$
+^\.pi$
 ^_targets$
 ^.*\.Rcheck$
 ^.*\.tar\.gz$
@@ -6,3 +7,4 @@
 ^\.Rproj\.user$
 ^\.Rhistory$
 ^\.RData$
+^LICENSE$

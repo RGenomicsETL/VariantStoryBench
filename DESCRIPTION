@@ -13,13 +13,14 @@ Description: Generates small synthetic GRCh38 cases and latent truth, accepts
     metrics for rare-disease variant prioritisation benchmarks. The package
     supports deterministic VCF fixtures, canonical 'ducksemantics' HPO
     observations, and 'targets' orchestration for repeatable benchmark runs.
-License: GPL-3 + file LICENSE
+License: GPL (>= 2)
 URL: https://github.com/RGenomicsETL/VariantStoryBench
 BugReports: https://github.com/RGenomicsETL/VariantStoryBench/issues
 Depends:
     R (>= 4.4.0)
 Imports:
     ducksemantics,
+    digest,
     vcfppR
 Remotes:
     RGenomicsETL/ducksemantics@fabda65ef8c82eabc7658b4e99489dfee141150f,
