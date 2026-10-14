@@ -2,53 +2,35 @@
 output: github_document
 ---
 
-<!-- README.md is generated from README.Rmd. -->
-
 # VariantStoryBench
 
-[![R-CMD-check](https://github.com/RGenomicsETL/VariantStoryBench/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/RGenomicsETL/VariantStoryBench/actions/workflows/R-CMD-check.yaml)
+Public, dated benchmarks for VariantStory and VariantLake, under GPL (>= 2).
+Compose DuckClinVarbitration, ducksemantics, DuckHTS and DuckVEP or vep-rs
+instead of building another source-ingestion or policy framework.
 
-VariantStoryBench validates rare-disease prioritization results and calculates benchmark metrics.
-The selected study direction uses public data throughout, alongside
-[VariantStory](https://github.com/RGenomicsETL/VariantStory/pull/7).
+## Specification first
 
-## Public-data path
+Read the [whole-system specification][system] and [implementation specification][implementation].
+This repository owns the [public-data plan](public-data-plan.md),
+[temporal benchmark](temporal-benchmark.md) and [result contracts](benchmark-contract.md).
 
-The [public-data plan](public-data-plan.md) defines source selection, preparation,
-engine adapters, temporal comparisons, and publication.
-Publish source manifests, selection rules, benchmark labels, evaluation scripts,
-run configuration, and results here as each step is implemented.
+## Public data path
 
 ```text
-public callsets / case records / provider releases
-    -> reproducible input preparation
-    -> VariantStory execution
-    -> validated results
-    -> public metrics and reports
+public provider history + gene/disease/variant/date scope
+  -> selected inputs + public later outcomes
+  -> VariantStory analysis
+  -> predictions, transitions, incremental/full comparisons, metrics
 ```
 
-Keep public benchmark labels separate from engine inputs.
-Use public callsets for transport and scale checks.
-Use eligible public cases for prioritization within their declared candidate universe.
-Use public provider releases for evidence-change and temporal comparisons.
-Do not invent missing case fields or describe technical checks as diagnostic yield.
+Start with [ReVUS](https://github.com/tamerh/ReVUS)-style VUS transitions.
+Use existing XML-derived SCV, RCV and VCV history for disease-aware extensions.
+Public labels are published but do not enter earlier prediction inputs.
+No private cohort or invented study population is required.
 
-This direction does not depend on a private cohort or generated study cases.
-Existing micro-cohorts remain developer fixtures, not the research population or a prerequisite for this plan.
-
-## Implemented and planned
-
-| Available now | Still to implement for the public study |
-|---|---|
-| Result-relation validators and explicit-denominator metrics | Public source inventory and preparation scripts |
-| Allele/genotype transport, phenotype, and frequency checks | Bundled VariantStory engine adapter |
-| Developer fixture generation and contract tests | Executable temporal selection and published study runs |
-
-The package does not implement a diagnostic prioritizer or replace provider loaders.
-See [ARCHITECTURE.md](ARCHITECTURE.md) for current responsibilities and
-[benchmark-contract.md](benchmark-contract.md) for schemas and metrics.
-See [temporal-benchmark.md](temporal-benchmark.md) for the temporal design;
-the public-data plan selects the parts used by this study.
+The package already provides relation validators, scoring and developer fixtures.
+Public cohort selection, the bundled VariantStory adapter and temporal execution remain implementation work.
+Existing generated micro-cohorts are software tests only, not the study population.
 
 ## Install
 
@@ -56,30 +38,12 @@ the public-data plan selects the parts used by this study.
 remotes::install_github("RGenomicsETL/VariantStoryBench")
 ```
 
-## Result contract
+Use R and SQL with small source/version configuration. Reuse upstream metadata.
+No additional checksum or approval service is part of the design.
 
-Adapters emit declared `runs`, `evaluations`, and `candidates`.
-Ranks are unique and contiguous per run/case/target, with candidate-ID tie breaking.
-Failed, skipped, and unsupported known-causal units remain ranking misses.
-Source spans use nonempty zero-based half-open intervals.
+## License
 
-`bench_validate_frequency_observations()` checks typed case-frequency outputs,
-including exact VariantKey text and distinct match, filter, and missing-value states.
-It does not assign clinical evidence criteria.
-`bench_classification_diff()` compares caller-supplied decisions under the declared policy.
-These functions do not imply that a complete public-data adapter already exists.
+GPL (>= 2). See `DESCRIPTION` and `LICENSE`.
 
-## Developer checks
-
-`bench_generate_micro_cohort()` and `bench_evaluate_micro_cohort()` remain available for software tests.
-Their existing contracts are documented in the architecture and package help.
-The current `targets` pipeline generates developer fixtures and checks contracts;
-it is not the public study runner and does not invent engine output.
-
-```r
-targets::tar_make(callr_function = NULL)
-```
-
-## Licence
-
-GPL (>= 2). See `DESCRIPTION`, `LICENSE`, and [CONTRIBUTING.md](CONTRIBUTING.md).
+[system]: https://github.com/RGenomicsETL/VariantStory/blob/docs/bioconnect-reanalysis-plan/design/system-specification.md
+[implementation]: https://github.com/RGenomicsETL/VariantStory/blob/docs/bioconnect-reanalysis-plan/design/implementation-specification.md

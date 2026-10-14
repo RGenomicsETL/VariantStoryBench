@@ -1,132 +1,47 @@
 # VariantStoryBench architecture
 
-## Selected study direction
+VariantStoryBench owns public scoped benchmark selection, result contracts, scoring and reports.
+It composes the same providers as VariantStory; it does not implement clinical policy or storage.
 
-Use public data throughout the study and expose the work alongside VariantStory.
-The [public-data plan](public-data-plan.md) defines source preparation, adapters,
-temporal comparisons, public labels, and result publication.
-Publish manifests, selection code, configuration, evaluation code, and results here.
-Keep benchmark labels separate from engine inputs while making the study reproducible from public sources.
-Existing generated micro-cohorts remain developer fixtures, not study cohorts or prerequisites.
+## Specification sequence
 
-## Current implementation
+[Whole-system abstract specification][system] -> functional refinement ->
+[implementation-motivated refinement and specification][implementation].
 
-**Runtime authority:** the relation validators and metrics in `R/`, exercised by
-`inst/tinytest/`. Public-source adapters and study execution are planned, not implemented by these documentation changes.
+The [public-data plan](public-data-plan.md) applies that design to this package.
+The [temporal specification](temporal-benchmark.md) defines ReVUS-style public experiments.
 
-VariantStoryBench currently generates small synthetic GRCh38 developer inputs and keeps
-evaluator truth separate. It validates declared result relations and calculates
-metrics. `targets` orchestrates generation and contract checks. The package
-does not implement a diagnostic prioritiser, a workflow framework, generic
-command execution, production source semantics, source provenance/checksums,
-or a ClinVar/literature/Monarch loader.
+```text
+public dated provider relations + scope/dates
+      -> benchmark input rows and public outcome rows
+      -> VariantStory adapter -> declared results
+      -> scoring -> per-unit comparisons and aggregate metrics
+```
 
-| Work area | Package responsibility | Outside this package |
-|---|---|---|
-| Engine input | GRCh38 VCF paths/generations, persons with exact VCF sample IDs, case/relationship presentation, and clinical source documents | A concrete engine adapter and its output parser |
-| Evaluator truth | Causal answers with explicit REF/ALT role, person-grain identity around canonical HPO observations, source/canonical allele truth, exact genotype transport truth, CNV truth, and capability rows | Engine access and clinical evidence policy |
-| Clinical prose | Call a supplied provider with phenotype/context and family presentation only for developer fixtures | Prompt/model configuration; study case inputs come from public sources |
-| Evaluation | Validate declared relations, including typed case-frequency observations, and calculate explicit-denominator metrics | Clinical adjudication |
+Public labels do not become prediction features. No private evaluation system is required.
+Build SCV, RCV and VCV experiments from existing DuckClinVarbitration history.
+Compose ducksemantics and DuckVEP/vep-rs where those inputs are needed.
+Compare incremental results with a full run on identical facts and method settings.
 
-## Developer-fixture data flow
+## Current code and planned additions
 
-`bench_generate_micro_cohort()` returns two deliberately separate bundles:
+The package has result validators and metrics in `R/`, with tests in `inst/tinytest/`.
+It also contains generated micro-cohort developer fixtures. Those are software tests,
+not the public study population or prerequisites for study delivery.
+No new runtime behavior is implemented by these specification changes.
 
-1. `engine_input`: `case_manifest`, VCF paths/generation rows, `persons`,
-   relationships, and source documents. `persons` has exactly
-   `case_id`, `person_id`, `vcf_sample_id`, `is_proband`, `sex`, and `affected`
-   (with admitted `affected`/`unaffected`/`unknown` values);
-   every VCF sample is admitted through that mapping. It has no causal answer,
-   truth, reference, or oracle relation.
-2. `evaluator_truth`: cases, causal truth, case/person/observation identity
-   around canonical `ducksemantics` HPO fields, source/canonical `allele_truth`,
-   person-grain `genotype_truth`, explicit `causal_allele_truth`, CNV truth, and
-   capabilities. It is not passed to the
-   prose provider or an engine.
+Add scoped public source views, a VariantStory adapter, temporal outcome selection,
+and paired full/incremental comparisons. Reuse the current result validators where compatible.
+Public inputs do not have to come from `bench_generate_micro_cohort()`.
+The existing fixture generator, transport tests and result APIs remain unchanged.
 
-`bench_evaluate_micro_cohort()` accepts only `evaluator_truth` and declared
-`runs`, `evaluations`, and `candidates`. No reference result is generated.
-There is currently no bundled engine adapter: execution remains unsupported
-until a concrete adapter accepts declared inputs and emits validated result relations.
-The public-data adapter must not require those inputs to come from the generator.
-The public
-`bench_validate_frequency_observations()` contract can validate an adapter's
-case-frequency output without loading VariantStory or rebuilding its provider
-fixture. It requires lowercase 16-character hexadecimal VariantKey text, exact
-AC/AN/AF and FAF bounds/missingness, provider-row multiplicity, and explicit
-match/filter/observation state; it is not a PM2 evaluator.
+Keep source/release/date, scope and method settings in small ordinary tables/configuration.
+Reuse metadata from providers. Do not add another importer, checksum service or approval workflow.
+Use R and SQL, not a new generic execution framework.
 
-## Current developer-fixture scope
+See [benchmark-contract.md](benchmark-contract.md) for current result interfaces.
+Scientific forecast, reanalysis, policy comparison and case ranking are separately named tasks.
+Observed public reclassification is not an independent clinical diagnosis.
 
-The generator writes a singleton VCF, a trio indel VCF with all three
-sample rows for every record, a symbolic deletion VCF, and a phenotyped
-confirmed-negative singleton VCF. Relationships use
-`case_id`, `person_id`, `relative_id`, and `relationship`; both trio edges are
-`biological_parent`, with parent sex carried by `persons`. The deletion is a
-real `cnv` case with a mapped CNV proband, GRCh38, type, BED half-open interval,
-source `unsupported_symbolic` admission, and independent `routed`/`XCNV`
-routing truth. It is a transport fixture, not general CNV/SV simulation.
-
-The generated VCFs use Ensembl GRCh38 primary-assembly contig names and these
-verified reference alleles:
-
-| VCF locus | REF | ALT |
-|:--|:--|:--|
-| `1:100000` | `C` | `T` |
-| `1:100100-100102` | `TGC` | `TC` (canonical `TG>T`) |
-| `2:199999-200000` | `TG` | `T` |
-| `2:200100` | `T` | `A` |
-| `2:200200` | `A` | `C` |
-| `2:200300` | `T` | `C` |
-| `7:549997` | `T` | `<DEL>` (`END=559997`) |
-
-These micro-coordinates were checked against Ensembl release 116 GRCh38
-primary assembly. The package does not bundle the reference FASTA or provide a
-general reference validator.
-
-For the symbolic deletion, VCF `POS=549997` is the one-based padding/base-before-event
-coordinate and `END=559997` is the inclusive last affected base. The padding base
-is excluded from the affected span, so the BED half-open interval is
-`[549997, 559997)`: use VCF `POS` as the BED start and `END` as the exclusive
-end. This affected interval is `559997 - 549997 = 10,000` bp; the VCF itself
-remains unchanged.
-
-Every case emits one source document with `case_id`, including the CNV case
-whose phenotype plan is empty and whose observation count is zero. Evaluator
-HPO rows add `case_id`, `person_id`, and `observation_id` around unchanged
-canonical `ducksemantics` fields. The text provider receives no causal truth;
-metrics retain person grain so findings cannot move silently between relatives.
-
-`allele_truth` is keyed by case/source-record/ALT ordinal and preserves exact
-source and expected canonical GRCh38 geometry, sequence class, and source
-admission status. The `TGC>TC` fixture is canonically suffix-minimized to `TG>T`
-without requiring a reference lookup. `genotype_truth` adds person grain and
-preserves exact GT, GQ, DP, ALT-relative copy count, ploidy, phase, phase set,
-and call state; its call state is one of
-`called_alternate`, `called_reference`, `partial_no_call`, `no_call`, or
-`other_alternate`. These are call states relative to an ALT ordinal, not
-clinical-significance labels. `causal_allele_truth` separately identifies
-whether variant causal truth targets source `reference` or one exact
-`alternate` ordinal. The singleton causal answer intentionally targets REF;
-the confirmed-negative case has a called ALT but no causal row. Public
-transport metrics compare engine-neutral relations with evaluator reference data. GQ/DP
-are not interpreted as a Bench quality threshold. The inheritance and CNV
-reference relations remain developer assets; the selected study uses public-source labels.
-
-The `capabilities` relation marks realistic exome/genome simulation, related
-ancestry/admixture, multiplex/consanguinity, general CNV/SV, and novel
-gene-disease historical holdouts as `unsupported`.
-
-## Temporal selection
-
-Executable temporal case selection remains **unsupported**.
-The [public-data plan](public-data-plan.md) selects public case inputs and provider releases;
-case-document generation is not part of the study.
-The existing [temporal design](temporal-benchmark.md) supplies provider-specific
-availability rules, ClinVar transition comparisons, and PM5 first-seen evidence rules.
-Record the exact public artifacts and eligible comparisons before execution.
-The package retains `bench_classification_diff()` for caller-provided decisions,
-but does not accept a caller-supplied anti-join count as proof.
-
-See [benchmark-contract.md](benchmark-contract.md) for relation schemas,
-coordinate conventions, and metric denominators.
+[system]: https://github.com/RGenomicsETL/VariantStory/blob/docs/bioconnect-reanalysis-plan/design/system-specification.md
+[implementation]: https://github.com/RGenomicsETL/VariantStory/blob/docs/bioconnect-reanalysis-plan/design/implementation-specification.md
