@@ -1,5 +1,6 @@
 # Public temporal implementation
 
+- Retain every baseline VUS in the observed-pathogenic-resolution task, including missing, retired, changed-context, and other later states. Preserve separate outcome counts.
 - Add `bench_transition_metrics()` with explicit task denominators, abstention coverage, tie-aware average precision, ROC AUC, and classification metrics.
 - Separate resolved direction from observed pathogenic resolution. Do not treat unresolved variants as biologically benign.
 - Test ties, missing predictions, empty and single-class subsets, probability values, and task-specific exclusions.

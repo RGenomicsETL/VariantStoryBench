@@ -26,9 +26,11 @@ flowchart LR
 | Task | Positive | Negative | Excluded |
 |---|---|---|---|
 | `resolved_direction` | `to_pathogenic` | `to_benign` | All other outcomes |
-| `observed_pathogenic_resolution` | `to_pathogenic` | `to_benign`, `still_vus`, `to_conflicting` | Missing, retired, changed-context, and other outcomes |
+| `observed_pathogenic_resolution` | `to_pathogenic` | Every other observed outcome state | None |
 
-The second task measures observed source resolution. It does not label a persistent VUS as biologically benign.
+The second task retains every supplied baseline VUS. A missing, retired, or changed-context record remains in that denominator.
+Its zero label means no observed pathogenic resolution in this comparison, not biological benignity or complete follow-up.
+Report the separate outcome counts to show loss of follow-up and context changes.
 The first task conditions on later resolution. It does not measure resolution probability for all baseline VUS.
 
 ## Missing predictions stay visible
@@ -57,5 +59,5 @@ Predictions require `unit_id`, `condition_id`, `submitter_id`, and `score`.
 Keep context keys as VARCHAR. Use probabilities in [0,1], or NULL.
 Source outcomes stay outside prediction inputs.
 
-Tests cover ties, missing predictions, empty scores, single-class subsets, invalid values, and denominator changes between tasks.
+Tests cover ties, missing predictions, empty scores, single-class subsets, every outcome state, invalid values, and denominator changes between tasks.
 These tests do not claim measured public-cohort accuracy.

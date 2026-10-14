@@ -22,10 +22,24 @@ expect_equal(m$balanced_accuracy_scored, 1)
 expect_equal(m$recall_eligible, 0.5)
 expect_equal(sum(result$outcome_counts$n), 6)
 m <- bench_transition_metrics(con, "truth", "scores", "observed_pathogenic_resolution")$metrics
-expect_equal(m$eligible_n, 4)
-expect_equal(m$excluded_n, 2)
+expect_equal(m$eligible_n, 6)
+expect_equal(m$excluded_n, 0)
+expect_equal(m$eligible_negative_n, 4)
+expect_equal(m$coverage, 0.5)
+expect_equal(m$abstained_n, 3)
 expect_equal(m$fp, 1)
 expect_equal(m$balanced_accuracy_scored, 0.75)
+# Every later state remains in the baseline event-resolution population.
+DBI::dbExecute(con, "CREATE TABLE all_states AS SELECT * FROM truth UNION ALL
+ SELECT 'ret',NULL::VARCHAR,NULL::VARCHAR,'retired' UNION ALL
+ SELECT 'oth',NULL::VARCHAR,NULL::VARCHAR,'other' UNION ALL
+ SELECT 'con',NULL::VARCHAR,NULL::VARCHAR,'to_conflicting'")
+m <- bench_transition_metrics(con, "all_states", "scores", "observed_pathogenic_resolution")$metrics
+expect_equal(m$eligible_n, 9)
+expect_equal(m$cohort_n, m$eligible_n)
+expect_equal(m$eligible_negative_n, 7)
+expect_equal(m$excluded_n, 0)
+expect_equal(m$abstained_n, 6)
 DBI::dbExecute(con, "CREATE TABLE two AS SELECT * FROM truth WHERE unit_id IN ('p','b')")
 DBI::dbExecute(con, "UPDATE scores SET score=0.5")
 m <- bench_transition_metrics(con, "two", "scores")$metrics

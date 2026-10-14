@@ -11,5 +11,7 @@
 \item{threshold}{A finite probability in [0,1].}
 }
 \description{Compute counts, coverage, classification metrics, average precision, and ROC AUC without collecting the cohort.}
-\details{Resolved direction uses only to_pathogenic and to_benign. Observed pathogenic resolution also includes still_vus and to_conflicting as no observed pathogenic resolution, not biological benign labels. Both tasks exclude missing, retired, changed-context, and other states. Missing predictions and NULL scores are abstentions. Scores must be finite probabilities. Ranking metrics operate on scored eligible rows. Average precision groups tied scores. Undefined rates return NULL. recall_eligible includes unscored eligible positives in its denominator.}
+\details{Resolved direction uses only to_pathogenic and to_benign. Observed pathogenic resolution retains every supplied baseline VUS: to_pathogenic is positive and all other states are no observed pathogenic resolution. This is not biological benignity or proof of complete follow-up. Outcome counts preserve missing, retired, changed-context, and other states.
+
+Missing predictions and NULL scores are abstentions. Scores must be finite probabilities. Ranking metrics operate on scored eligible rows. Average precision groups tied scores. Undefined rates return NULL. recall_eligible includes unscored eligible positives in its denominator.}
 \value{A list with metrics (one row) and outcome_counts (all outcome states).}

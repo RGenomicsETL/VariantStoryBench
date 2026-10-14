@@ -16,9 +16,9 @@
 #' Score public transition predictions without collecting the cohort
 #'
 #' Resolved direction compares to_pathogenic with to_benign only.
-#' Observed pathogenic resolution also includes still_vus and to_conflicting as
-#' no observed pathogenic resolution. These are not biological benign labels.
-#' Both tasks exclude missing, retired, changed-context, and other outcomes.
+#' Observed pathogenic resolution retains every supplied baseline VUS.
+#' Only to_pathogenic is positive; every other state means no observed pathogenic
+#' resolution in this source comparison, not biological benignity.
 #'
 #' Missing predictions and NULL scores are abstentions. Ranking metrics use only
 #' scored eligible units. Coverage and recall_eligible retain the full denominator.
@@ -65,8 +65,7 @@ bench_transition_metrics <- function(con, outcomes, predictions,
          SELECT unit_id,condition_id,submitter_id,outcome,
            CASE WHEN outcome='to_pathogenic' THEN 1
                 WHEN outcome='to_benign' THEN 0
-                WHEN {task}='observed_pathogenic_resolution'
-                  AND outcome IN ('still_vus','to_conflicting') THEN 0
+                WHEN {task}='observed_pathogenic_resolution' THEN 0
                 ELSE NULL END AS label
          FROM {`outcomes`}
        ), joined AS (
