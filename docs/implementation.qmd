@@ -1,0 +1,84 @@
+---
+title: "Dated public transitions"
+format:
+  gfm: default
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: false
+---
+
+## Two public snapshots, two separate outputs
+
+`bench_public_transitions()` selects baseline VUS and joins their later source states.
+It preserves condition and submitter identity. It does not import ClinVar or infer a diagnosis.
+
+```{mermaid}
+flowchart LR
+  B[Provider snapshot at t0] --> V[Select baseline VUS]
+  V --> I[Prediction input rows]
+  I --> J[Join exact unit and context]
+  A[Provider snapshot at t1] --> J
+  J --> O[Public outcome rows]
+  I --> M[Analysis method]
+  M --> S[Score predictions]
+  O --> S
+```
+
+The provider adapter supplies one selected snapshot per date, not a mixture of releases.
+Use retained public availability timestamps. A last-evaluated date is not an availability timestamp.
+Supply accession lineage explicitly when identities changed between releases.
+
+## Source-view contract
+
+| Column | Meaning |
+|---|---|
+| `unit_id` | Stable source or mapped lineage identity |
+| `condition_id` | Condition identity; NULL when the selected grain has none |
+| `submitter_id` | Submitter identity; NULL when absent at that grain |
+| `state` | `vus`, `pathogenic`, `benign`, `conflict`, `retired`, or `other` |
+| `available_at` | Public availability, not evaluation date |
+
+Run SCV, RCV, VCV, and arbitration comparisons separately. The provider owns the mapping to these states.
+An absent later row becomes `missing_later`, never a benign label or a confirmed retirement.
+
+## API example
+
+This example requires caller-supplied source views. It is not executed during rendering.
+
+```r
+bench_public_transitions(
+  con, before = "rcv_2022", after = "rcv_2026",
+  t0 = as.POSIXct("2022-06-30", tz = "UTC"),
+  t1 = as.POSIXct("2026-07-31", tz = "UTC"),
+  inputs = "vus_inputs", outcomes = "vus_outcomes"
+)
+bench_compare_relations(con, "incremental_results", "full_results",
+                        ignore = "run_id")
+```
+
+## Complete result comparison
+
+```{mermaid}
+flowchart LR
+  I[Incremental result] --> X[EXCEPT ALL in both directions]
+  F[Full result] --> X
+  X --> C[Actual-only and expected-only counts]
+  C --> E[Both zero means equal multisets]
+```
+
+`bench_compare_relations()` compares all retained columns, duplicate multiplicity, and NULL values.
+Ignore volatile columns explicitly. Matching row counts alone do not establish equality.
+
+## Tests and limits
+
+The software tests use tiny constructed rows, not a research population.
+They cover condition separation, null keys, dates, duplicates, rollback, and multiset differences.
+No public-cohort performance or clinical accuracy result is claimed by this implementation.
+
+```sh
+Rscript tools/test-implementation.R
+quarto render docs/implementation.qmd --to gfm
+quarto render docs/implementation.qmd --to html
+```

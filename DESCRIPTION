@@ -8,25 +8,26 @@ Authors@R:
       email = "sounkoutoure@gmail.com",
       role = c("aut", "cre", "cph")
     )
-Description: Generates small synthetic GRCh38 cases and latent truth, accepts
-    declared engine result relations, and calculates explicit-denominator
-    metrics for rare-disease variant prioritisation benchmarks. The package
-    supports deterministic VCF fixtures, canonical 'ducksemantics' HPO
-    observations, and 'targets' orchestration for repeatable benchmark runs.
+Description: Selects public dated variant transitions, compares complete result
+    relations, and calculates explicit-denominator metrics for variant
+    prioritisation. Small generated developer fixtures test transport and
+    result contracts; they are not the research population.
 License: GPL (>= 2)
 URL: https://github.com/RGenomicsETL/VariantStoryBench
 BugReports: https://github.com/RGenomicsETL/VariantStoryBench/issues
 Depends:
     R (>= 4.4.0)
 Imports:
+    DBI,
     ducksemantics,
     digest,
+    glue,
     vcfppR
 Remotes:
     RGenomicsETL/ducksemantics@fabda65ef8c82eabc7658b4e99489dfee141150f,
     Rduckhts=RGenomicsETL/duckhts/r/Rduckhts@da231c9ce3750570ddc1d02ada3bb6d8f2b3b52e
 Suggests:
-    DBI,
+    duckdb,
     knitr,
     Rduckhts,
     rmarkdown,
