@@ -29,11 +29,12 @@
     "SELECT 1 FROM {`relation`} WHERE unit_id IS NULL OR unit_id = ''
      OR available_at IS NULL OR NOT isfinite(available_at) LIMIT 1", .con = con))
   if (nrow(bad)) stop("Source identity and availability must be valid", call. = FALSE)
-  # Each unit revision contains all contexts for that unit at one availability time.
+  # Each unit revision contains all contexts and declared fields at one availability time.
   selected <- glue::glue_sql(
-    "SELECT unit_id, condition_id, submitter_id, state, available_at
-     FROM {`relation`} WHERE epoch(available_at) <= {cutoff}
-     QUALIFY dense_rank() OVER (PARTITION BY unit_id ORDER BY epoch(available_at) DESC) = 1",
+    "SELECT source.*
+     FROM {`relation`} AS source WHERE epoch(source.available_at) <= {cutoff}
+     QUALIFY dense_rank() OVER (
+       PARTITION BY source.unit_id ORDER BY epoch(source.available_at) DESC) = 1",
     .con = con)
   bad <- DBI::dbGetQuery(con, glue::glue_sql(
     "SELECT 1 FROM ({selected}) s WHERE state IS NULL
@@ -59,6 +60,11 @@
 #' revision supplies the complete unit state. Emit retired rows for withdrawals
 #' in history; absence alone does not retire an earlier revision.
 #' Map accession lineage explicitly before calling this function.
+#'
+#' Inputs retain every declared column from the selected before rows, with its
+#' SQL type and value, including NULLs. No after columns or values are added to
+#' inputs. The adapter must supply baseline-eligible features and provenance in
+#' before; a row timestamp cannot establish the availability of an undated join.
 #'
 #' Later contexts remain in the later_contexts list column. A missing exact
 #' context with surviving unit contexts is context_changed, not missing_later.

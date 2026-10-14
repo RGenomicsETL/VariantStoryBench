@@ -15,5 +15,7 @@ bench_public_transitions(con, before, after, t0, t1, inputs, outcomes)
 
 History inputs contain the complete context set for each unit revision at one availability timestamp. Use explicit retired records for withdrawals. Map accession lineage upstream. Snapshots without older revisions are also supported.
 
+Inputs retain every declared column from the selected before rows, in source order, with its SQL type and value, including NULLs. Empty inputs retain that schema. No after columns or values are added to inputs. The provider adapter must supply baseline-eligible features and provenance in before; a row timestamp cannot establish the availability of a feature joined from an undated source. Caller-supplied columns are not removed by name.
+
 Exact context matches determine state_after. A surviving unit with a changed context produces context_changed, not missing_later. The later_contexts list retains the new condition, submitter, state, and availability rows. This function does not infer a diagnosis. UTC epoch comparisons do not require ICU string-to-timezone conversion.}
 \value{A list identifying inputs and outcomes.}
