@@ -1,9 +1,20 @@
 # VariantStoryBench architecture
 
-**Current authority:** the relation validators and metrics in `R/`, exercised by
-`inst/tinytest/`. This document states current package responsibilities, not a delivery plan.
+## Selected study direction
 
-VariantStoryBench generates small synthetic GRCh38 benchmark inputs and keeps
+Use public data throughout the study and expose the work alongside VariantStory.
+The [public-data plan](public-data-plan.md) defines source preparation, adapters,
+temporal comparisons, public labels, and result publication.
+Publish manifests, selection code, configuration, evaluation code, and results here.
+Keep benchmark labels separate from engine inputs while making the study reproducible from public sources.
+Existing generated micro-cohorts remain developer fixtures, not study cohorts or prerequisites.
+
+## Current implementation
+
+**Runtime authority:** the relation validators and metrics in `R/`, exercised by
+`inst/tinytest/`. Public-source adapters and study execution are planned, not implemented by these documentation changes.
+
+VariantStoryBench currently generates small synthetic GRCh38 developer inputs and keeps
 evaluator truth separate. It validates declared result relations and calculates
 metrics. `targets` orchestrates generation and contract checks. The package
 does not implement a diagnostic prioritiser, a workflow framework, generic
@@ -14,10 +25,10 @@ or a ClinVar/literature/Monarch loader.
 |---|---|---|
 | Engine input | GRCh38 VCF paths/generations, persons with exact VCF sample IDs, case/relationship presentation, and clinical source documents | A concrete engine adapter and its output parser |
 | Evaluator truth | Causal answers with explicit REF/ALT role, person-grain identity around canonical HPO observations, source/canonical allele truth, exact genotype transport truth, CNV truth, and capability rows | Engine access and clinical evidence policy |
-| Clinical prose | Call a supplied provider with phenotype/context and family presentation only | Prompt/model configuration, including gpt-5.3-spark or Rbebelm |
+| Clinical prose | Call a supplied provider with phenotype/context and family presentation only for developer fixtures | Prompt/model configuration; study case inputs come from public sources |
 | Evaluation | Validate declared relations, including typed case-frequency observations, and calculate explicit-denominator metrics | Clinical adjudication |
 
-## Sealed data flow
+## Developer-fixture data flow
 
 `bench_generate_micro_cohort()` returns two deliberately separate bundles:
 
@@ -36,15 +47,16 @@ or a ClinVar/literature/Monarch loader.
 `bench_evaluate_micro_cohort()` accepts only `evaluator_truth` and declared
 `runs`, `evaluations`, and `candidates`. No reference result is generated.
 There is currently no bundled engine adapter: execution remains unsupported
-until a concrete adapter accepts the complete `engine_input` bundle and emits
-validated result relations. The public
+until a concrete adapter accepts declared inputs and emits validated result relations.
+The public-data adapter must not require those inputs to come from the generator.
+The public
 `bench_validate_frequency_observations()` contract can validate an adapter's
 case-frequency output without loading VariantStory or rebuilding its provider
 fixture. It requires lowercase 16-character hexadecimal VariantKey text, exact
 AC/AN/AF and FAF bounds/missingness, provider-row multiplicity, and explicit
 match/filter/observation state; it is not a PM2 evaluator.
 
-## Current synthetic scope
+## Current developer-fixture scope
 
 The generator writes a singleton VCF, a trio indel VCF with all three
 sample rows for every record, a symbolic deletion VCF, and a phenotyped
@@ -97,9 +109,9 @@ clinical-significance labels. `causal_allele_truth` separately identifies
 whether variant causal truth targets source `reference` or one exact
 `alternate` ordinal. The singleton causal answer intentionally targets REF;
 the confirmed-negative case has a called ALT but no causal row. Public
-transport metrics compare engine-neutral relations with sealed truth. GQ/DP
+transport metrics compare engine-neutral relations with evaluator reference data. GQ/DP
 are not interpreted as a Bench quality threshold. The inheritance and CNV
-truth relations remain sealed for future scientific evaluation.
+reference relations remain developer assets; the selected study uses public-source labels.
 
 The `capabilities` relation marks realistic exome/genome simulation, related
 ancestry/admixture, multiplex/consanguinity, general CNV/SV, and novel
@@ -107,13 +119,14 @@ gene-disease historical holdouts as `unsupported`.
 
 ## Temporal selection
 
-Executable temporal case selection remains **unsupported**. The first release
-design selects provider-specific E0 and E1 availability cutoffs, an exact
-ClinVar transition track, a case-reanalysis track, PM5 first-seen truth, and
-receipt-bound case-document authoring. See
-[temporal-benchmark.md](temporal-benchmark.md). The package retains
-`bench_classification_diff()` for caller-provided decisions, but does not
-accept a caller-supplied anti-join count as proof.
+Executable temporal case selection remains **unsupported**.
+The [public-data plan](public-data-plan.md) selects public case inputs and provider releases;
+case-document generation is not part of the study.
+The existing [temporal design](temporal-benchmark.md) supplies provider-specific
+availability rules, ClinVar transition comparisons, and PM5 first-seen evidence rules.
+Record the exact public artifacts and eligible comparisons before execution.
+The package retains `bench_classification_diff()` for caller-provided decisions,
+but does not accept a caller-supplied anti-join count as proof.
 
 See [benchmark-contract.md](benchmark-contract.md) for relation schemas,
 coordinate conventions, and metric denominators.
