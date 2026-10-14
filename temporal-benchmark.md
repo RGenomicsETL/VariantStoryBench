@@ -1,94 +1,141 @@
-# Temporal benchmark release decision
+# Dated public benchmark specification
 
-**Status:** selected design; provider capture and executable case selection remain incomplete.
+Selected implementation contract. The public cohort builder and complete engine adapter remain work.
+Follow the [whole-system specification][system] and [public-data plan](public-data-plan.md).
 
-## Two tracks
+## Abstract experiment
 
-### ClinVar transition
+Given public provider history H, scope Q, and t0 < t1:
 
-Follow the useful ReVUS design: select earlier-release VUS and label their later observed state as transition toward pathogenic, transition toward benign, conflict, retirement, or persistent VUS.
+```text
+state0  = latest complete public state with available_at <= t0
+state1  = latest complete public state with available_at <= t1
+inputs  = state0 facts selected by Q
+cohort  = eligible t0 units (for example VUS)
+labels  = state1 outcomes joined to those same units
+scores  = method(inputs), without t1 labels
+metrics = evaluate(scores, labels)
+```
 
-VariantStoryBench additionally retains exact allele and ClinVar merge lineage, evaluates disease-level RCV/SCV facts under one fixed RClinVarbitration policy, and admits only earlier-epoch predictors and provider artifacts. ReVUS's shipped predictor features came from a 2026 BioBTree snapshot; they can reproduce that study but are not admissible as 2022 inputs in this strict track.
+All source data, selection code and labels are public. No separate evaluator service is required.
+Generation means a query over dated records, not invented patients or clinical narratives.
 
-### Case reanalysis
+## Three tasks
 
-This is the primary VariantStory task. It asks whether an admitted case changes after new human curation, literature, disease knowledge, or an expert specification becomes available. It measures newly recoverable solutions, exact evidence deltas, classification and rank changes, review burden, and correct abstention.
-
-## Selected epochs
-
-| Epoch | Availability cutoff | Role |
+| Task | Inputs | Target |
 |---|---|---|
-| `E0_2024_01_23` | `2024-01-23T23:59:59Z` | engine input and baseline result |
-| `E1_2026_07_21` | `2026-07-21T23:59:59Z` | evaluator outcome and reanalysis result |
+| VUS forecast | t0 records and t0-eligible features | Later observed direction or state, following ReVUS |
+| Incremental reanalysis | t0 result plus t1 public changes | Equality with a complete t1 run and correct semantic differences |
+| Policy comparison | One fixed release with two named policies | Policy-induced differences, not a source update |
 
-These are public-availability cutoffs, not only dates printed inside records. A source enters an epoch only if its exact released object was publicly available by the cutoff.
+For [ReVUS][revus] comparability, use its declared 2022-06 and 2026-07 ClinVar releases.
+Other dates are parameters, not another fixed release ceremony.
+Separate predicting pathogenic resolution in all baseline VUS from predicting direction
+only among later-resolved variants. The latter is conditional on a future outcome.
+Report observed ClinVar transitions, not guaranteed biological truth.
 
-| Provider | E0 | E1 | Use |
-|---|---|---|---|
-| ClinVar GRCh38 | `clinvar_20240107.vcf.gz` | `clinvar_20260706.vcf.gz` | assertions, first-seen curation, transitions |
-| Monarch KG | tag `2024-01-13`, published 2024-01-23 | tag `2026-07-14`, published 2026-07-17 | disease-mediated retrieval and phenotype associations |
-| ClinGen CSpec | exact versions released by E0 | exact versions released by E1 | criterion applicability and strength |
-| ClinGen gene-disease | latest exact artifact available by E0 | latest exact artifact available by E1 | gene-condition validity and mechanism |
-| PubMed | 2024 baseline plus updates available by E0 | 2026 baseline plus updates available by E1 | literature first-seen evidence |
-| HPO | latest exact release available by E0 | latest exact release available by E1 | phenotype identity and ontology calculations |
+## Provider composition and grain
 
-ClinGen gene-disease, PubMed, HPO, and historical CSpec rows remain `pending_receipt` until exact artifacts and digests are audited. Current data must never be relabelled as an old snapshot. If a historical artifact cannot be obtained, that provider is `unavailable` for E0.
+Use DuckClinVarbitration/RClinVarbitration's imported releases and transition relations.
+Reuse `rclinvarbitration_disease_release_transitions()` where its disease decision contract fits.
+No second XML ingestion pipeline is needed.
 
-BRCA1 CSpec `GN092/version/1.2.1` has a released event on 2025-01-09, so it is E1-only and supplies a real specification delta.
+| Grain | Identity | Output |
+|---|---|---|
+| SCV | Submission accession/version, submitter, and condition context | Submission-level state and changes |
+| RCV | Accession/version with allele and condition context | Disease-specific aggregate/history |
+| VCV | Variation/accession lineage | Variant aggregate/history, separately from RCV results |
+| Arbitration | Exact allele plus condition and selected arbitration policy | Derived provider decision, not the original NCBI aggregate |
 
-## Provider time rules
+Preserve accession merges, replacements, withdrawn/missing records and changed conditions.
+Do not merge all conditions into one label before evaluating disease-level changes.
+Use the same policy at both dates when measuring source changes.
 
-Every epoch needs one row per provider with exact release ID, source URL, release and first verified availability times, payload and receipt digests, selected policy receipt, and status.
+Use retained public versions or releases to reconstruct as-of state.
+An old `DateLastEvaluated` on a current assertion does not prove that current content existed at t0.
+Keep public availability separate from submission/evaluation dates.
+A current XML file alone cannot establish every previous version.
 
-- **ClinVar:** first availability is the first retained release containing the SCV/RCV fact under the fixed policy. `DateLastEvaluated` alone does not prove availability.
-- **CSpec:** require the exact version IRI, released-event time, and retained source bytes. A current response claiming an old version is not a historical artifact unless receipt-matched.
-- **PubMed:** both baseline/update-file availability and Entrez history must satisfy the cutoff. Publication year alone is insufficient.
-- **Monarch:** an edge first exists in the first exact Monarch release containing it. Upstream dates remain provenance; they cannot move an edge into an unavailable release.
-- **ClinGen gene-disease:** require an exact archival artifact and publication time. Per-record approval dates do not replace its receipt.
+ducksemantics supplies dated disease/ontology relations and source-grounded retrieval.
+DuckVEP or vep-rs supplies consequences; cache by allele/reference, annotator, model and options.
+A transcript/model change creates a new configuration and can require broad annotation refresh.
 
-ClinVar, ClinGen, and PubMed may establish a new human-curation label. Monarch is an aggregated retrieval resource and does not establish that label by itself.
+## Proposed relations and selection
 
-## Leakage rule
+Keep the provider's schemas. Build a thin view with these fields for each selected grain:
 
-The engine receives only E0 case facts and E0 provider rows. E1 assertions, articles, specifications, ontology edges, causal and solution identifiers, first-seen labels, generation plans, and scoring oracles remain evaluator-only.
+```text
+provider, release, available_at, grain, unit_id, allele_id,
+condition_id, submitter_id, accession_version, classification, review_status
+```
 
-Each evidence item records the first retained provider release containing it. It cannot enter E0 when first available after E0, even if an internal evaluation, submission, or publication date is older.
+Condition and submitter fields are nullable where the grain does not contain them.
+The mapping must preserve the source accession rather than fabricate equivalence.
 
-## Naturally changing cohorts
+Choose one of two source contracts before selection:
 
-Initial strata are:
+- Complete release snapshots: choose the latest eligible release as a whole.
+  A unit absent from that release remains absent. Do not fill it from an older release.
+- Complete unit history: choose the latest eligible revision of each stable unit.
+  Each revision contains all its contexts at one availability timestamp.
+  A withdrawal needs an explicit retired revision. Missing historical rows do not erase older state.
 
-1. E0 VUS or absent assertion followed by a disease-matched E1 pathogenic or likely pathogenic ClinVar assertion under the fixed policy;
-2. an E1 ClinGen gene-disease or CSpec release that changes an executable interpretation path;
-3. a PubMed claim first available in E1 and admitted by RClinVarbitration's typed literature projection;
-4. an E1 pathogenic missense assertion that can support PM5 for a different candidate missense allele;
-5. negative controls whose source state changes but whose case result should not change.
+Eligibility uses inclusive `available_at <= cutoff`. Compare actual availability instants,
+not evaluation dates or session-dependent timezone strings. Reject ambiguous duplicate
+selected unit/context rows instead of choosing an arbitrary one. Do not union all prior
+versions or select old contexts independently after a complete unit revision removed them.
+The unit-history adapter in PR #5 follows the second contract. A provider adapter must
+select a complete release before passing release-shaped inputs to that operation.
 
-Report source type, gene, disease, variant type, E0 and E1 review status, submitter stratum, and whether E1 resolved an allele or only added evidence. Report gene-disjoint and disease-disjoint subsets with the full temporal set.
+Select baseline VUS at t0 and LEFT JOIN to t1 by the declared identity/lineage mapping.
+Publish outcomes: persistent VUS, P/LP, B/LB, conflict, retired/removed, changed context, and other.
+Keep t0 variables in the input relation and t1 labels in the scoring relation.
+Scope by gene, disease, variant class, review level, submitter or date in SQL.
 
-## PM5 truth
+Retain unresolved, conflict and removed states. They are not biological benign labels.
+For observed pathogenic resolution, retain every baseline VUS and report whether a
+pathogenic outcome was observed. Keep missing/retired/context-change counts separate.
+Do not infer complete follow-up from a zero event label.
+Optional feature comparisons record model/training and source release dates.
+A modern model applied to old evidence is a present-day retrospective method;
+do not claim that model was historically available.
 
-PM5 is a relation between exact alleles, never a codon-number inference. A positive row requires:
+## Incremental experiment
 
-- candidate and evidence alleles annotated by the same receipt-bound DuckVEP transcript model;
-- missense consequences on the same transcript;
-- the same reference amino acid and protein position but different alternate amino acids;
-- a disease- and mechanism-matched E1 pathogenic assertion for the evidence allele;
-- exact assertion identity, provider release, and first availability after E0;
-- strength admitted by the selected CSpec profile.
+```text
+full(t0) + data/knowledge/scope/policy changes -> incremental(t1)
+complete new inputs and method              -> full(t1)
+compare normalized logical outputs and resource use
+```
 
-The same amino-acid substitution belongs to PS1 and is excluded. Position-only matches, different transcripts, unmatched diseases, and post-cutoff assertions are negative tests. Missing E0 assertions remain explicit states, not benign evidence.
+Declare the input unit universe and the semantic output relations before comparison.
+Compare the full universe, evaluation coverage/status, source facts, assessed evidence,
+classifications, candidate memberships/ranks, and findings for the selected task.
+Include empty relations and duplicate multiplicity. Do not compare only relations that
+happen to be nonempty in both runs; that would hide missing work and dropped units.
 
-## LLM-authored documents
+Exclude execution IDs, timings, physical row order, and execution-lineage pointers.
+Resolve lineage pointers to their semantic source facts before comparison.
+Keep source releases, policy identity, evidence contributions, and ranks in the comparison.
+Retain unaffected results and apply removals, including old-only scope groups.
+Incomplete dependency information requires broader recomputation.
 
-An LLM may realize a sealed structured presentation as clinical prose. It receives only age, sex, phenotypes, explicit negations, person-attributed family facts, and permitted distractors—not the causal allele, gene, disease, later evidence, ranking, or expected classification.
+A later pathogenic allele may affect PS1/PM5 evidence for another allele.
+Match allele, transcript, amino-acid change, disease and mechanism under the selected policy.
+Do not infer that relation from a codon number alone.
 
-The frozen receipt binds model, runtime, prompt digest, allowed-fact digest, output digest, and validation result. Deterministic validation rejects unsupported phenotypes, person misattribution, leaked gene/variant/disease identifiers, and altered negation. Authoring and engine-under-test models are separately configured.
+## Outputs and ordinary tests
 
-This controlled-realization lane can contribute to headline metrics. A model asked to invent a case from disease knowledge cannot, because its pretrained knowledge date is not auditable. Engine LLM claims are accepted only when entailed by the case document or a supplied E0 source excerpt.
+Publish a small config: sources/releases, t0/t1, scope, method/options and policy version.
+Reuse provider metadata; no new payload-digest or approval service is required.
+Output selected rows, predictions, outcomes, transition counts and metrics.
+Report AUPRC and class-aware metrics for imbalanced tasks, with denominators and coverage.
+Report paired incremental/full differences, timing, memory and annotation work avoided.
 
-## Completion evidence
+Tests cover inclusive as-of filtering, complete releases and unit revisions, accession changes,
+condition separation, missing later records, unchanged results, label independence,
+policy-only/scope-only changes, and complete incremental/full equality.
+Existing tinytest edge fixtures remain software tests, not the public study population.
 
-The release requires receipt-checked epoch manifests, an R/DuckDB cohort builder, exact allele and assertion lineage, PM5 truth and negative controls, frozen documents and authoring receipts, an E0-only engine bundle, inaccessible evaluator truth, and independent temporal, classification, ranking, evidence-delta, and review-burden metrics.
-
-Until these exist, call the dates a selected release design, not a completed benchmark release.
+[system]: https://github.com/RGenomicsETL/VariantStory/blob/docs/bioconnect-reanalysis-plan/design/system-specification.md
+[revus]: https://github.com/tamerh/ReVUS
