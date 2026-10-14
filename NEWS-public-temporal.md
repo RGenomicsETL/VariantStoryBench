@@ -1,5 +1,9 @@
 # Public temporal implementation
 
+- Retain every baseline VUS in the observed-pathogenic-resolution task, including missing, retired, changed-context, and other later states. Preserve separate outcome counts.
+- Add `bench_transition_metrics()` with explicit task denominators, abstention coverage, tie-aware average precision, ROC AUC, and classification metrics.
+- Separate resolved direction from observed pathogenic resolution. Do not treat unresolved variants as biologically benign.
+- Test ties, missing predictions, empty and single-class subsets, probability values, and task-specific exclusions.
 - Select the latest eligible complete unit revision from retained histories at each cutoff.
 - Compare UTC epoch values without loading ICU to parse cutoff strings.
 - Preserve changed condition/submitter contexts as `context_changed` and `later_contexts`, not unexplained absence.
@@ -8,6 +12,6 @@
 - Keep prediction inputs separate from public outcomes.
 - Add `bench_compare_relations()` for full multiset comparisons, including duplicate rows and NULL values.
 - Add focused tests for dates, condition identity, rollback, and result differences.
-- Add the shared technical-explanations skill and a Quarto/Mermaid implementation guide.
+- Add the shared technical-explanations skill and Quarto/Mermaid implementation guides.
 
 Existing developer fixtures and their historical changelog remain unchanged.

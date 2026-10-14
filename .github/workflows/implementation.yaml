@@ -18,15 +18,16 @@ jobs:
         run: install.packages(c("DBI", "duckdb", "glue", "tinytest", "knitr", "rmarkdown"))
       - name: Run implementation tests
         run: Rscript tools/test-implementation.R
-      - name: Render guide
+      - name: Render guides
         run: |
-          quarto render docs/implementation.qmd --to gfm
-          quarto render docs/implementation.qmd --to html
-          cat docs/implementation.md
+          for source in docs/*.qmd; do
+            quarto render "$source" --to gfm
+            quarto render "$source" --to html
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: implementation-guide
           path: |
-            docs/implementation.md
-            docs/implementation.html
+            docs/*.md
+            docs/*.html
           if-no-files-found: error

@@ -1,5 +1,9 @@
 # VariantStoryBench 0.1.0.9000
 
+- Added `bench_transition_metrics()` for SQL-based public transition scoring.
+  Separate direction among resolved variants from observed pathogenic resolution
+  across every baseline VUS. Report abstention coverage, outcome counts,
+  tie-aware average precision, ROC AUC, Brier score, and threshold metrics.
 - Added `bench_public_transitions()` for inclusive as-of selection of complete
   public unit revisions, exact condition/submitter matching, and atomic
   publication of baseline VUS inputs and separate later outcomes.
