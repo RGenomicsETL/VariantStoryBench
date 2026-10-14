@@ -1,0 +1,32 @@
+name: Implementation and rendered guide
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - name: Install focused test and render dependencies
+        shell: Rscript {0}
+        run: install.packages(c("DBI", "duckdb", "glue", "tinytest", "knitr", "rmarkdown"))
+      - name: Run implementation tests
+        run: Rscript tools/test-implementation.R
+      - name: Render guide
+        run: |
+          quarto render docs/implementation.qmd --to gfm
+          quarto render docs/implementation.qmd --to html
+          cat docs/implementation.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: implementation-guide
+          path: |
+            docs/implementation.md
+            docs/implementation.html
+          if-no-files-found: error

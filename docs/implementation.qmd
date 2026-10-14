@@ -1,0 +1,118 @@
+---
+title: "Dated public transitions"
+format:
+  gfm: default
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: false
+---
+
+## History in, dated public states out
+
+`bench_public_transitions()` selects the latest eligible revision of each source unit.
+It then selects baseline VUS and joins later states at the same condition and submitter.
+
+```{mermaid}
+flowchart LR
+  H[Public source history] --> A[Latest complete unit revision at t0]
+  H --> B[Latest complete unit revision at t1]
+  A --> I[Baseline VUS inputs]
+  I --> J[Match exact unit and context]
+  B --> J
+  J --> O[Public outcomes and later contexts]
+  I --> M[Analysis method]
+  M --> S[Score predictions]
+  O --> S
+```
+
+Keep all contexts of one unit revision at the same availability timestamp.
+A provider adapter must supply complete unit revisions, not partial context updates.
+A plain snapshot is also valid. Run SCV, RCV, VCV, and arbitration tasks separately.
+
+## Source-view contract
+
+| Column | Meaning |
+|---|---|
+| `unit_id` | Stable source or explicitly mapped lineage identity |
+| `condition_id` | Condition identity; NULL when absent at this grain |
+| `submitter_id` | Submitter identity; NULL when absent at this grain |
+| `state` | `vus`, `pathogenic`, `benign`, `conflict`, `retired`, or `other` |
+| `available_at` | Public availability as UTC TIMESTAMP or TIMESTAMPTZ |
+
+The provider owns state and accession mappings. An assertion's evaluation date is not its availability date.
+History needs an explicit `retired` revision for withdrawal. Missing rows do not erase an earlier history revision.
+
+## Preserve the baseline columns
+
+The five required fields are a minimum schema, not an output projection.
+`inputs` retains every declared column from the selected `before` rows, in source order, with its SQL type and value.
+This includes allele identifiers, prediction features, provider/release provenance, and NULL values.
+Empty cohorts retain the same declared schema.
+
+Only `before` supplies input columns and values. Columns exclusive to `after` never enter `inputs`.
+Later values cannot replace same-name baseline features or fill baseline NULLs.
+Changing later labels or adding future revisions must leave the selected baseline relation unchanged.
+
+The provider adapter must date feature sources and supply baseline-eligible columns in `before`.
+An old row timestamp does not make a feature joined from a current release historically available.
+This function does not infer feature availability or remove caller-supplied columns by name.
+
+## Keep context changes visible
+
+```{mermaid}
+flowchart TD
+  U[Baseline unit and context] --> E{Exact later match?}
+  E -->|Yes| C[Compare source states]
+  E -->|No| X{Other contexts for this unit?}
+  X -->|Yes| N[context_changed; retain later_contexts]
+  X -->|No| M[missing_later; no inferred benign label]
+```
+
+`later_contexts` contains the later unit's condition, submitter, state, and availability rows.
+A different condition does not supply `state_after` for the old condition.
+Computed later outcome fields are published only in `outcomes`.
+
+## API example
+
+This example needs a caller-supplied public history relation. Rendering does not execute it.
+
+```r
+bench_public_transitions(
+  con, before = "rcv_history", after = "rcv_history",
+  t0 = as.POSIXct("2022-06-30", tz = "UTC"),
+  t1 = as.POSIXct("2026-07-31", tz = "UTC"),
+  inputs = "vus_inputs", outcomes = "vus_outcomes"
+)
+bench_compare_relations(con, "incremental_results", "full_results",
+                        ignore = "run_id")
+```
+
+## Compare complete results
+
+```{mermaid}
+flowchart LR
+  I[Incremental result] --> X[EXCEPT ALL in both directions]
+  F[Full result] --> X
+  X --> C[Actual-only and expected-only counts]
+```
+
+Both counts must be zero. The comparison includes duplicate multiplicity, NULLs, and all retained columns.
+Ignore volatile columns explicitly. Matching row counts alone do not establish equality.
+
+## Tests
+
+Software tests cover complete unit histories, future rows, changed contexts, duplicates, rollback, and full multiset comparison.
+Baseline tests compare complete rows and schemas, including unsigned keys, decimals, lists, quoted column names, provenance, and NULLs.
+They also change later features, labels, and schema, and separate two submitters with divergent outcomes for one unit/condition.
+The history and baseline tests disable extension loading. UTC cutoff comparisons must work without an ICU download.
+Constructed test rows are software tests, not a research population.
+
+```sh
+Rscript tools/test-implementation.R
+quarto render docs/implementation.qmd --to gfm
+quarto render docs/implementation.qmd --to html
+```
+
+No public-cohort accuracy or performance result is claimed here.
