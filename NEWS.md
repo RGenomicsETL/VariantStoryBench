@@ -1,5 +1,11 @@
 # VariantStoryBench 0.1.0.9000
 
+- Added `bench_public_transitions()` for inclusive as-of selection of complete
+  public unit revisions, exact condition/submitter matching, and atomic
+  publication of baseline VUS inputs and separate later outcomes.
+- Added `bench_compare_relations()` for complete SQL relation comparison as
+  multisets, including schema types, NULL values, and duplicate multiplicity.
+  Only explicitly named volatile columns are excluded.
 - Preserve all declared baseline columns in `bench_public_transitions()` instead
   of projecting only its five required fields. Selected allele identifiers,
   features, provider/release provenance, SQL types, and NULLs now survive in
@@ -91,8 +97,7 @@
   assembly/type/interval separately from authority.
 - Defined a temporal benchmark design with selected provider-specific
   availability epochs, ClinVar-transition and case-reanalysis tracks, exact
-  PM5 truth rules, and receipt-bound LLM document authoring. Executable
-  source selection is not implemented.
+  PM5 truth rules, and receipt-bound LLM document authoring.
 - Added sealed-bundle leakage, all-VCF Rduckhts round-trip, canonical HPO,
   empty-denominator, and typed-CNV regression coverage.
 
