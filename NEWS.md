@@ -1,5 +1,12 @@
 # VariantStoryBench 0.1.0.9000
 
+- Preserve all declared baseline columns in `bench_public_transitions()` instead
+  of projecting only its five required fields. Selected allele identifiers,
+  features, provider/release provenance, SQL types, and NULLs now survive in
+  inputs, including the schema of empty cohorts. Later columns and values
+  remain separate. Regression tests cover later-data independence and divergent
+  non-NULL submitters for one unit/condition.
+
 - Licensed under GPL (>= 2).
 - Engine-facing cases, samples, and VCF paths use stable opaque identifiers;
   engine and evaluator relations are written to separate directories.
