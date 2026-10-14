@@ -11,24 +11,60 @@
 }
 
 .bench_cutoff <- function(x) {
-  if (!inherits(x, "POSIXt") || length(x) != 1L || is.na(x) || !is.finite(as.numeric(x))) {
+  if (!inherits(x, "POSIXct") || length(x) != 1L || is.na(x) || !is.finite(as.numeric(x))) {
     stop("A cutoff must be one POSIXct timestamp", call. = FALSE)
   }
-  format(x, "%Y-%m-%d %H:%M:%OS6+00:00", tz = "UTC")
+  as.numeric(x)
 }
 
-#' Build a public VUS transition cohort from two selected source snapshots
+.bench_public_snapshot <- function(con, relation, cutoff) {
+  required <- c("unit_id", "condition_id", "submitter_id", "state", "available_at")
+  schema <- .bench_relation_schema(con, relation)
+  types <- stats::setNames(schema$column_type, schema$column_name)
+  if (!all(required %in% names(types)) || any(types[required[1:4]] != "VARCHAR") ||
+      !types[["available_at"]] %in% c("TIMESTAMP", "TIMESTAMP WITH TIME ZONE")) {
+    stop("Source view must have the documented keys, state, and timestamp types", call. = FALSE)
+  }
+  bad <- DBI::dbGetQuery(con, glue::glue_sql(
+    "SELECT 1 FROM {`relation`} WHERE unit_id IS NULL OR unit_id = ''
+     OR available_at IS NULL OR NOT isfinite(available_at) LIMIT 1", .con = con))
+  if (nrow(bad)) stop("Source identity and availability must be valid", call. = FALSE)
+  # Each unit revision contains all contexts for that unit at one availability time.
+  selected <- glue::glue_sql(
+    "SELECT unit_id, condition_id, submitter_id, state, available_at
+     FROM {`relation`} WHERE epoch(available_at) <= {cutoff}
+     QUALIFY dense_rank() OVER (PARTITION BY unit_id ORDER BY epoch(available_at) DESC) = 1",
+    .con = con)
+  bad <- DBI::dbGetQuery(con, glue::glue_sql(
+    "SELECT 1 FROM ({selected}) s WHERE state IS NULL
+     OR state NOT IN ('vus','pathogenic','benign','conflict','retired','other') LIMIT 1", .con = con))
+  if (nrow(bad)) stop("Invalid selected source state", call. = FALSE)
+  duplicate <- DBI::dbGetQuery(con, glue::glue_sql(
+    "SELECT 1 FROM ({selected}) s GROUP BY unit_id, condition_id, submitter_id
+     HAVING count(*) > 1 LIMIT 1", .con = con))
+  if (nrow(duplicate)) stop("Selected snapshot has duplicate unit/condition/submitter keys", call. = FALSE)
+  selected
+}
+
+#' Build a public VUS transition cohort from dated source relations
 #'
 #' The source views have unit_id, condition_id, submitter_id, state, and
 #' available_at. Keys are VARCHAR; condition and submitter may be NULL.
 #' State is vus, pathogenic, benign, conflict, retired, or other.
 #' Availability is TIMESTAMP (interpreted as UTC) or TIMESTAMPTZ, not an
 #' assertion's evaluation date. Source adapters select one provider and grain.
-#' Supply an explicit lineage mapping in those views when accessions change.
-#' Neither this function nor the evaluator imports source data or infers truth.
 #'
+#' A view can contain one snapshot or retained unit history. Every unit revision
+#' must include all its contexts at one available_at value. The latest eligible
+#' revision supplies the complete unit state. Emit retired rows for withdrawals
+#' in history; absence alone does not retire an earlier revision.
+#' Map accession lineage explicitly before calling this function.
+#'
+#' Later contexts remain in the later_contexts list column. A missing exact
+#' context with surviving unit contexts is context_changed, not missing_later.
+#' No later context is substituted as the old context's classification.
 #' @param con Caller-owned DuckDB DBI connection without an active transaction.
-#' @param before,after Names or DBI::Id values for selected source snapshots.
+#' @param before,after Names or DBI::Id values for source snapshots or unit histories.
 #' @param t0,t1 POSIXct cutoffs, with t1 after t0.
 #' @param inputs,outcomes New output table names or DBI::Id values.
 #' @return A list identifying the two published relations.
@@ -40,48 +76,35 @@ bench_public_transitions <- function(con, before, after, t0, t1, inputs, outcome
   outcomes <- .bench_relation_id(outcomes)
   c0 <- .bench_cutoff(t0)
   c1 <- .bench_cutoff(t1)
-  if (t1 <= t0) stop("t1 must be after t0", call. = FALSE)
-  required <- c("unit_id", "condition_id", "submitter_id", "state", "available_at")
+  if (c1 <= c0) stop("t1 must be after t0", call. = FALSE)
   DBI::dbWithTransaction(con, {
-    for (i in 1:2) {
-      relation <- list(before, after)[[i]]
-      cutoff <- c(c0, c1)[[i]]
-      schema <- .bench_relation_schema(con, relation)
-      types <- stats::setNames(schema$column_type, schema$column_name)
-      if (!all(required %in% names(types)) ||
-          any(types[required[1:4]] != "VARCHAR") ||
-          !types[["available_at"]] %in% c("TIMESTAMP", "TIMESTAMP WITH TIME ZONE")) {
-        stop("Source view must have the documented keys, state, and timestamp types", call. = FALSE)
-      }
-      bad <- DBI::dbGetQuery(con, glue::glue_sql(
-        "SELECT 1 FROM {`relation`} WHERE unit_id IS NULL OR unit_id = ''
-         OR state IS NULL OR state NOT IN ('vus','pathogenic','benign','conflict','retired','other')
-         OR available_at IS NULL OR NOT isfinite(available_at)
-         OR epoch(available_at) > epoch(CAST({cutoff} AS TIMESTAMPTZ)) LIMIT 1", .con = con))
-      if (nrow(bad)) stop("Invalid state, identity, or post-cutoff source row", call. = FALSE)
-      duplicate <- DBI::dbGetQuery(con, glue::glue_sql(
-        "SELECT 1 FROM {`relation`} GROUP BY unit_id, condition_id, submitter_id HAVING count(*) > 1 LIMIT 1",
-        .con = con))
-      if (nrow(duplicate)) stop("Source snapshot has duplicate unit/condition/submitter keys", call. = FALSE)
-    }
+    s0 <- .bench_public_snapshot(con, before, c0)
+    s1 <- .bench_public_snapshot(con, after, c1)
     DBI::dbExecute(con, glue::glue_sql(
-      "CREATE TABLE {`inputs`} AS
-       SELECT unit_id, condition_id, submitter_id, state, available_at
-       FROM {`before`} WHERE state = 'vus'", .con = con))
+      "CREATE TABLE {`inputs`} AS SELECT * FROM ({s0}) b WHERE state = 'vus'", .con = con))
     DBI::dbExecute(con, glue::glue_sql(
       "CREATE TABLE {`outcomes`} AS
+       WITH later AS ({s1}), contexts AS (
+         SELECT unit_id, list(struct_pack(condition_id := condition_id,
+           submitter_id := submitter_id, state := state, available_at := available_at)
+           ORDER BY condition_id NULLS FIRST, submitter_id NULLS FIRST) AS later_contexts
+         FROM later GROUP BY unit_id
+       )
        SELECT b.unit_id, b.condition_id, b.submitter_id,
               b.state AS state_before, a.state AS state_after,
-              CASE WHEN a.unit_id IS NULL THEN 'missing_later'
+              CASE WHEN a.unit_id IS NULL AND c.unit_id IS NOT NULL THEN 'context_changed'
+                WHEN a.unit_id IS NULL THEN 'missing_later'
                 WHEN a.state = 'vus' THEN 'still_vus'
                 WHEN a.state = 'pathogenic' THEN 'to_pathogenic'
                 WHEN a.state = 'benign' THEN 'to_benign'
                 WHEN a.state = 'conflict' THEN 'to_conflicting'
-                WHEN a.state = 'retired' THEN 'retired' ELSE 'other' END AS outcome
-       FROM {`inputs`} b LEFT JOIN {`after`} a
+                WHEN a.state = 'retired' THEN 'retired' ELSE 'other' END AS outcome,
+              c.later_contexts
+       FROM {`inputs`} b LEFT JOIN later a
          ON b.unit_id = a.unit_id
         AND b.condition_id IS NOT DISTINCT FROM a.condition_id
-        AND b.submitter_id IS NOT DISTINCT FROM a.submitter_id", .con = con))
+        AND b.submitter_id IS NOT DISTINCT FROM a.submitter_id
+       LEFT JOIN contexts c ON c.unit_id = b.unit_id", .con = con))
   })
   list(inputs = inputs, outcomes = outcomes)
 }

@@ -1,13 +1,19 @@
 \name{bench_public_transitions}
 \alias{bench_public_transitions}
-\title{Build a public VUS transition cohort}
-\usage{bench_public_transitions(con, before, after, t0, t1, inputs, outcomes)}
+\title{Build public dated VUS transitions}
+\usage{
+bench_public_transitions(con, before, after, t0, t1, inputs, outcomes)
+}
 \arguments{
 \item{con}{Caller-owned DuckDB DBI connection without an active transaction.}
-\item{before, after}{Selected snapshot table names or DBI identifiers.}
-\item{t0, t1}{POSIXct availability cutoffs; t1 must follow t0.}
-\item{inputs, outcomes}{New output table names or DBI identifiers.}
+\item{before,after}{Source relation names or DBI::Id values.}
+\item{t0,t1}{POSIXct cutoffs, with t1 after t0.}
+\item{inputs,outcomes}{New output table identifiers.}
 }
-\description{Select baseline VUS and join later outcomes at unit, condition, and submitter grain.}
-\details{Source views contain VARCHAR unit_id, condition_id, submitter_id, state, and TIMESTAMP or TIMESTAMPTZ available_at. State is vus, pathogenic, benign, conflict, retired, or other. The provider maps its own classifications and accession lineage. NULL context keys match NULL. Later absence is missing_later, not benign. Inputs and outcomes publish atomically and must not already exist.}
-\value{A list with inputs and outcomes relation identifiers.}
+\description{Select the latest public unit revision at each cutoff. Publish separate baseline VUS inputs and later outcomes atomically.}
+\details{Source columns are unit_id, condition_id, submitter_id, state, and available_at. Keys and state are VARCHAR. Condition and submitter may be NULL. States are vus, pathogenic, benign, conflict, retired, or other. Availability is TIMESTAMP in UTC or TIMESTAMPTZ.
+
+History inputs contain the complete context set for each unit revision at one availability timestamp. Use explicit retired records for withdrawals. Map accession lineage upstream. Snapshots without older revisions are also supported.
+
+Exact context matches determine state_after. A surviving unit with a changed context produces context_changed, not missing_later. The later_contexts list retains the new condition, submitter, state, and availability rows. This function does not infer a diagnosis. UTC epoch comparisons do not require ICU string-to-timezone conversion.}
+\value{A list identifying inputs and outcomes.}
