@@ -1,0 +1,61 @@
+---
+title: "Score public transitions"
+format:
+  gfm: default
+  html:
+    toc: true
+    embed-resources: true
+---
+
+## Report the denominator first
+
+`bench_transition_metrics()` joins predictions to public outcomes in SQL.
+It returns one metric row and a count for each source outcome state.
+
+```{mermaid}
+flowchart LR
+  O[Public outcomes] --> E[Select the declared evaluation task]
+  E --> J[Join predictions by unit and context]
+  P[Probability scores or abstention] --> J
+  J --> C[Coverage and excluded outcome counts]
+  J --> M[Scored-subset metrics]
+```
+
+## Keep two questions separate
+
+| Task | Positive | Negative | Excluded |
+|---|---|---|---|
+| `resolved_direction` | `to_pathogenic` | `to_benign` | All other outcomes |
+| `observed_pathogenic_resolution` | `to_pathogenic` | `to_benign`, `still_vus`, `to_conflicting` | Missing, retired, changed-context, and other outcomes |
+
+The second task measures observed source resolution. It does not label a persistent VUS as biologically benign.
+The first task conditions on later resolution. It does not measure resolution probability for all baseline VUS.
+
+## Missing predictions stay visible
+
+Missing rows and NULL scores are abstentions. They remain in the eligible population count.
+`coverage` reports the scored fraction. `recall_eligible` counts unscored eligible positives as unrecovered.
+
+Precision, recall, balanced accuracy, F1, Brier score, ROC AUC, and average precision use scored eligible rows.
+Their names end in `_scored`. An undefined rate is NULL, not a perfect score.
+Average precision groups equal scores before accumulating recall. It is not trapezoidal PR area.
+
+## Use it
+
+This example needs caller-owned outcome and prediction relations. Rendering does not execute it.
+
+```r
+result <- bench_transition_metrics(
+  con, outcomes = "vus_outcomes", predictions = "vus_predictions",
+  task = "resolved_direction", threshold = 0.5
+)
+result$outcome_counts
+result$metrics
+```
+
+Predictions require `unit_id`, `condition_id`, `submitter_id`, and `score`.
+Keep context keys as VARCHAR. Use probabilities in [0,1], or NULL.
+Source outcomes stay outside prediction inputs.
+
+Tests cover ties, missing predictions, empty scores, single-class subsets, invalid values, and denominator changes between tasks.
+These tests do not claim measured public-cohort accuracy.
