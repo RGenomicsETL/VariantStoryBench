@@ -1,5 +1,9 @@
 # VariantStoryBench 0.1.0.9000
 
+- Added `bench_public_release_snapshot()` to select complete public releases without reviving absent rows from older releases.
+- Added `bench_clinvar_arbitration_snapshot()` to adapt existing disease decisions under one provider policy/profile. Preserve original columns and exact allele IDs.
+- Test empty releases, inclusive dates, configuration selection, and composition with the temporal benchmark. Add a Quarto/Mermaid provider guide.
+
 - Added `bench_transition_metrics()` for SQL-based public transition scoring.
   Separate direction among resolved variants from observed pathogenic resolution
   across every baseline VUS. Report abstention coverage, outcome counts,
