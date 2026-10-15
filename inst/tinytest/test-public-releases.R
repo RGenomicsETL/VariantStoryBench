@@ -26,7 +26,10 @@ check_public_releases <- function() {
   x <- bench_public_release_snapshot(con, "facts", "releases", t1 + 40*86400, "empty")
   expect_equal(x$release_id, "empty")
   expect_equal(DBI::dbGetQuery(con, "SELECT count(*)::INTEGER AS n FROM empty")$n, 0L)
-  expect_equal(.bench_relation_schema(con, "empty"), .bench_relation_schema(con, "facts"))
+  expect_equal(
+    DBI::dbGetQuery(con, "DESCRIBE SELECT * FROM empty")[c("column_name", "column_type")],
+    DBI::dbGetQuery(con, "DESCRIBE SELECT * FROM facts")[c("column_name", "column_type")]
+  )
   expect_error(bench_public_release_snapshot(con, "facts", "releases", t0-1, "bad"), "No complete release")
   expect_false(DBI::dbExistsTable(con, "bad"))
   DBI::dbExecute(con, "INSERT INTO releases VALUES ('tie',TIMESTAMP '2026-07-01')")
