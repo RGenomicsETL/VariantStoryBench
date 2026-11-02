@@ -24,7 +24,7 @@ Imports:
     glue,
     vcfppR
 Remotes:
-    RGenomicsETL/ducksemantics/r/ducksemantics@301b9613eb0a86da3f83fb621a28377847e5d149,
+    RGenomicsETL/ducksemantics/r/ducksemantics@3af66479e1c21b2391e4d89568808e4160d851d3,
     Rduckhts=RGenomicsETL/duckhts/r/Rduckhts@da231c9ce3750570ddc1d02ada3bb6d8f2b3b52e
 Suggests:
     duckdb,
