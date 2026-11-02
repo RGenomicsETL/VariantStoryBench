@@ -1,4 +1,6 @@
 ^\.github$
+^\.git$
+^\.agents$
 ^\.pi$
 ^_targets$
 ^.*\.Rcheck$

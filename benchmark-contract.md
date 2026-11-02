@@ -32,6 +32,20 @@ Keep unresolved and confirmed-negative burden separate. Break score ties by cand
 `bench_validate_frequency_observations()` is not a PM2 evaluator.
 It requires lowercase 16-character hexadecimal VariantKey and its existing missingness/range rules.
 
+## DuckSemantics hypothesis consumer
+
+`bench_ducksemantics_grounding()` is the executable boundary for reviewed
+DuckSemantics hypothesis observations. It invokes the DuckSemantics validator,
+maps each non-abstaining observation to the existing `judgments` relation, maps
+its exact source locations to `judgment_sources`, and then calls
+`bench_validate_grounding()`. The return value retains the complete hypothesis
+and source-span receipts. Abstained candidates emit no judgment and remain
+explicit in the adapter result for candidate-level accounting.
+
+This adapter does not create a second hypothesis schema in VariantStoryBench.
+DuckSemantics owns proposal and review provenance; VariantStoryBench owns the
+candidate, evaluation, grounding-validation and metric contracts.
+
 ## Case and transport interfaces
 
 `persons`: case_id, person_id, vcf_sample_id, is_proband, sex, affected.
